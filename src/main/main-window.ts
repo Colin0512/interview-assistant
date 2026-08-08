@@ -18,6 +18,7 @@ export function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
+    title: '',
     frame: false,
     transparent: true,
     hasShadow: false,
@@ -37,6 +38,16 @@ export function createWindow(): void {
   global.mainWindow = mainWindow
 
   mainWindow.setMenuBarVisibility(false)
+
+  // Keep the native window title empty. Chromium's window picker (Edge/Chrome
+  // "share a window") enumerates windows with WebRTC's kIgnoreUntitled flag and
+  // drops the ones whose title is empty, so an untitled window never shows up in
+  // the list. setContentProtection only blanks the pixels; it does not hide the
+  // window from enumeration. The window is frameless, so no title is ever drawn.
+  mainWindow.on('page-title-updated', (event) => {
+    event.preventDefault()
+    mainWindow.setTitle('')
+  })
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
