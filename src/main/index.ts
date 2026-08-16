@@ -38,7 +38,7 @@ import { applyDockVisibility } from './settings'
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.system.helper')
 
   // Hide the dock icon up front until the renderer syncs the real preference.
   // The persisted `hideDockIcon` value lives in the renderer, so the main
