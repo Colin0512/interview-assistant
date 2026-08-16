@@ -5,6 +5,7 @@
 **Interview Coder CN** (截屏解题助手) is a desktop application that captures screenshots of on-screen problems (coding challenges, exam questions, or anything else) and uses AI (vision models) to generate solutions in real-time. The window is invisible to screen-sharing software, making it suitable for use during coding interviews and online assessments.
 
 Key capabilities:
+
 - Global shortcuts trigger screenshot capture → AI analysis → streamed solution display
 - Frameless, transparent, always-on-top overlay window invisible to screen-sharing
 - Mouse passthrough mode (window ignores mouse events)
@@ -15,16 +16,16 @@ Key capabilities:
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Electron 37 (electron-vite 4) |
-| Frontend | React 19, TypeScript 5.8 |
-| Styling | Tailwind CSS v4, shadcn/ui (New York style), Radix primitives |
-| State | Zustand 5 (5 stores, 2 with localStorage persistence) |
-| Routing | react-router v7 (HashRouter, 3 routes) |
-| AI | Vercel AI SDK (`ai` + `@ai-sdk/openai`), streaming via `streamText()` |
-| Build | electron-vite (Vite 7), electron-builder 25 |
-| Linting | ESLint 9 (flat config), Prettier |
+| Layer     | Technology                                                            |
+| --------- | --------------------------------------------------------------------- |
+| Framework | Electron 37 (electron-vite 4)                                         |
+| Frontend  | React 19, TypeScript 5.8                                              |
+| Styling   | Tailwind CSS v4, shadcn/ui (New York style), Radix primitives         |
+| State     | Zustand 5 (5 stores, 2 with localStorage persistence)                 |
+| Routing   | react-router v7 (HashRouter, 3 routes)                                |
+| AI        | Vercel AI SDK (`ai` + `@ai-sdk/openai`), streaming via `streamText()` |
+| Build     | electron-vite (Vite 7), electron-builder 25                           |
+| Linting   | ESLint 9 (flat config), Prettier                                      |
 
 ## Directory Structure
 
@@ -132,6 +133,7 @@ src/
 ### IPC Channels
 
 **Renderer → Main (invoke):**
+
 - `getAppSettings` / `updateAppSettings` — settings CRUD
 - `updateAppState` — sync `inCoderPage`, `ignoreMouse`
 - `initShortcuts` / `getShortcuts` / `updateShortcuts` — shortcut management
@@ -141,6 +143,7 @@ src/
 - `get-transcription-text` / `clear-transcription-text` — read/clear accumulated text
 
 **Main → Renderer (send):**
+
 - `sync-app-state` — push state changes (e.g., mouse ignore toggle)
 - `screenshot-taken` / `screenshots-updated` — screenshot data
 - `solution-clear` / `solution-chunk` / `solution-complete` / `solution-stopped` / `solution-error` — AI streaming lifecycle
@@ -151,13 +154,13 @@ src/
 
 ### Zustand Stores
 
-| Store | File | Persisted | Key State |
-|-------|------|-----------|-----------|
-| `useSettingsStore` | `lib/store/settings.ts` | Yes (v6) | `apiBaseURL`, `apiKey`, `model`, `customModels`, `scenes` (prompt scenes), `activeSceneId`, `customPrompt` (derived from active scene), `opacity`, `dashscopeApiKey` |
-| `useShortcutsStore` | `lib/store/shortcuts.ts` | Yes (v5) | `shortcuts` (action → key mapping with categories) |
-| `useSolutionStore` | `lib/store/solution.ts` | No | `isLoading`, `solutionChunks`, `screenshotData`, `errorMessage` |
-| `useTranscriptionStore` | `lib/store/transcription.ts` | No | `isTranscribing`, `transcriptionText`, `errorMessage` |
-| `useAppStore` | `lib/store/app.ts` | No | `ignoreMouse` |
+| Store                   | File                         | Persisted | Key State                                                                                                                                                            |
+| ----------------------- | ---------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useSettingsStore`      | `lib/store/settings.ts`      | Yes (v6)  | `apiBaseURL`, `apiKey`, `model`, `customModels`, `scenes` (prompt scenes), `activeSceneId`, `customPrompt` (derived from active scene), `opacity`, `dashscopeApiKey` |
+| `useShortcutsStore`     | `lib/store/shortcuts.ts`     | Yes (v5)  | `shortcuts` (action → key mapping with categories)                                                                                                                   |
+| `useSolutionStore`      | `lib/store/solution.ts`      | No        | `isLoading`, `solutionChunks`, `screenshotData`, `errorMessage`                                                                                                      |
+| `useTranscriptionStore` | `lib/store/transcription.ts` | No        | `isTranscribing`, `transcriptionText`, `errorMessage`                                                                                                                |
+| `useAppStore`           | `lib/store/app.ts`           | No        | `ignoreMouse`                                                                                                                                                        |
 
 Settings are bidirectionally synced: renderer persists to localStorage, and on mount syncs to main process via `updateAppSettings()`. Main process `.env` values serve as initial defaults only.
 
@@ -166,6 +169,7 @@ Settings are bidirectionally synced: renderer persists to localStorage, and on m
 ### Window Stealth
 
 The app is designed to be invisible to screen-sharing software:
+
 - `BrowserWindow` options: `transparent: true`, `frame: false`, `skipTaskbar: true`
 - `setContentProtection(true)` prevents screen capture of the window itself
 - `setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })`
