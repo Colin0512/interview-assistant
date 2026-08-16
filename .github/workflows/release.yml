@@ -53,8 +53,8 @@ jobs:
         with:
           draft: true
           files: |
-            dist/**/interview-coder-cn-*.dmg
-            dist/**/interview-coder-cn-*.exe
+            dist/**/system-helper-*.dmg
+            dist/**/system-helper-*.exe
             dist/**/latest-mac.yml
             dist/**/latest-windows.yml
         env:

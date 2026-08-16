@@ -30,7 +30,7 @@ const faqs = [
       <span>
         工具窗口在共享屏幕时自动隐藏(对方不可见)，但小部分会议软件可能需要配置才能隐藏。所以如果你对隐身功能有需求，务必在正式使用前用「当前电脑」+「当前会议软件」测试一下。更多细节请参考{' '}
         <a
-          href="https://github.com/ooboqoo/interview-coder-cn/wiki/隐身配置"
+          href="https://github.com/ooboqoo/system-helper/wiki/隐身配置"
           target="_blank"
           rel="noreferrer"
           className="text-blue-600 hover:underline"

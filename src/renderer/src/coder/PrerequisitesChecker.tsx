@@ -28,7 +28,7 @@ export function PrerequisitesChecker() {
   return (
     <div className="fixed top-9 left-0 right-0 bottom-0 flex bg-black/50">
       <div className="m-auto bg-white rounded-lg p-6 pt-1 w-120 shadow-lg">
-        <h1 className="text-xl font-bold text-center mb-2">欢迎使用截屏解题助手</h1>
+        <h1 className="text-xl font-bold text-center mb-2">欢迎使用System Helper</h1>
         <div className="text-sm text-gray-600">
           请先配置大模型聚合平台信息，如国内的
           <a

@@ -43,6 +43,6 @@ npmRebuild: false
 publish:
   provider: github
   owner: ooboqoo
-  repo: interview-coder-cn
+  repo: system-helper
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
