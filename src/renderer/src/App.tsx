@@ -39,11 +39,7 @@ export default function App() {
   }, [initialized, settingsStore])
 
   useEffect(() => {
-    console.log('App initShortcuts:', shortcuts) // DEBUG: 检查新键
     window.api.initShortcuts(shortcuts)
-    window.api.getShortcuts().then((shortcutsStatus) => {
-      console.log('Shortcuts registered:', shortcutsStatus) // DEBUG: 主进程状态
-    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
