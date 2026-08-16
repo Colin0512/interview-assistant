@@ -1,4 +1,4 @@
-import { globalShortcut, ipcMain, screen } from 'electron'
+﻿import { globalShortcut, ipcMain, screen } from 'electron'
 import type { BrowserWindow, Rectangle } from 'electron'
 import type { ModelMessage } from 'ai'
 import { applyContentProtection } from './main-window'
@@ -76,6 +76,16 @@ let currentStreamContext: StreamContext | null = null
 let conversationMessages: ModelMessage[] = []
 let recentScreenshots: string[] = [] // 最近截图，水平预览 (限5张)
 let hasAppendSeparator = false
+
+// Command mode: triple-semicolon activation for single-letter shortcuts
+let commandMode = false
+let semicolonPressCount = 0
+let semicolonPressTimer: NodeJS.Timeout | null = null
+// Randomized time window (300-700ms) to avoid detection as regular shortcut
+const SEMICOLON_TRIPLE_PRESS_WINDOW_MIN = 300
+const SEMICOLON_TRIPLE_PRESS_WINDOW_MAX = 700
+let currentTriplePressWindow = 500
+const commandModeKeys = ['S', 'A', 'Q', 'R', 'C', 'H', 'M', 'J', 'K']
 
 const FRONT_REASSERT_DURATION = 8000
 const FRONT_REASSERT_INTERVAL = 100
@@ -214,6 +224,76 @@ function abortCurrentStream(reason: AbortReason) {
   if (!currentStreamContext) return
   currentStreamContext.reason = reason
   currentStreamContext.controller.abort()
+}
+
+/**
+ * Toggle command mode on/off
+ */
+function toggleCommandMode() {
+  commandMode = !commandMode
+
+  if (commandMode) {
+    // Register single-letter shortcuts
+    commandModeKeys.forEach((key) => {
+      const action = getActionForKey(key)
+      if (action && callbacks[action]) {
+        globalShortcut.register(key, callbacks[action])
+      }
+    })
+  } else {
+    // Unregister single-letter shortcuts
+    commandModeKeys.forEach((key) => {
+      globalShortcut.unregister(key)
+    })
+  }
+}
+
+/**
+ * Map single letter to action
+ */
+function getActionForKey(key: string): string | null {
+  const keyMap: Record<string, string> = {
+    S: 'takeScreenshot',
+    A: 'appendScreenshot',
+    Q: 'stopSolutionStream',
+    R: 'toggleTranscription',
+    C: 'clearTranscription',
+    H: 'hideOrShowMainWindow',
+    M: 'ignoreOrEnableMouse',
+    J: 'pageDown',
+    K: 'pageUp'
+  }
+  return keyMap[key] || null
+}
+
+/**
+ * Handle semicolon press for triple-press detection
+ */
+function handleSemicolonPress() {
+  semicolonPressCount++
+
+  if (semicolonPressTimer) {
+    clearTimeout(semicolonPressTimer)
+  }
+
+  if (semicolonPressCount >= 3) {
+    toggleCommandMode()
+    semicolonPressCount = 0
+    if (semicolonPressTimer) {
+      clearTimeout(semicolonPressTimer)
+      semicolonPressTimer = null
+    }
+    // Randomize next time window to avoid detection pattern
+    currentTriplePressWindow = Math.floor(
+      Math.random() * (SEMICOLON_TRIPLE_PRESS_WINDOW_MAX - SEMICOLON_TRIPLE_PRESS_WINDOW_MIN) +
+        SEMICOLON_TRIPLE_PRESS_WINDOW_MIN
+    )
+  } else {
+    semicolonPressTimer = setTimeout(() => {
+      semicolonPressCount = 0
+      semicolonPressTimer = null
+    }, currentTriplePressWindow)
+  }
 }
 
 const callbacks: Record<string, () => void> = {
@@ -611,6 +691,9 @@ ipcMain.handle(
     Object.entries(shortcuts).forEach(([action, { key }]) => {
       registerShortcut(action, key)
     })
+
+    // Register semicolon key for triple-press detection (command mode activation)
+    globalShortcut.register(';', handleSemicolonPress)
   }
 )
 
