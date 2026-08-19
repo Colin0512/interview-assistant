@@ -74,7 +74,7 @@ function resolveVoiceProvider() {
   return {
     baseURL: useDedicatedProvider ? settings.voiceApiBaseURL : settings.apiBaseURL,
     apiKey: useDedicatedProvider ? settings.voiceApiKey : settings.apiKey,
-    model: useDedicatedProvider ? settings.voiceModel || 'qwen3.7-flash' : getModel(settings)
+    model: useDedicatedProvider ? settings.voiceModel || 'qwen-turbo' : getModel(settings)
   }
 }
 
