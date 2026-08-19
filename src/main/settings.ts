@@ -42,7 +42,7 @@ export const settings = {
   customPrompt: '',
   screenshotAutoSave: false,
   screenshotDir: '',
-  dashscopeApiKey: '',
+  dashscopeApiKey: process.env.DASHSCOPE_API_KEY || '',
   hideDockIcon: false,
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
