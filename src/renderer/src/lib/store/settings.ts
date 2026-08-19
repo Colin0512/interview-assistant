@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import codingPrompt from './prompts/coding.md?raw'
 import englishExamPrompt from './prompts/english-exam.md?raw'
 import generalQaPrompt from './prompts/general-qa.md?raw'
+import oxfordElltSpeakingPrompt from './prompts/oxford-ellt-speaking.md?raw'
 
 export interface PromptScene {
   id: string
@@ -17,7 +18,8 @@ export const CODING_SCENE_ID = 'coding'
 export const PRESET_SCENE_PROMPTS: Record<string, string> = {
   [CODING_SCENE_ID]: codingPrompt,
   'english-exam': englishExamPrompt,
-  'general-qa': generalQaPrompt
+  'general-qa': generalQaPrompt,
+  'oxford-ellt-speaking': oxfordElltSpeakingPrompt
 }
 
 const createPresetScenes = (): PromptScene[] => [
@@ -38,6 +40,12 @@ const createPresetScenes = (): PromptScene[] => [
     name: '通用问答',
     prompt: PRESET_SCENE_PROMPTS['general-qa'],
     isPreset: true
+  },
+  {
+    id: 'oxford-ellt-speaking',
+    name: 'ELLT 口语',
+    prompt: PRESET_SCENE_PROMPTS['oxford-ellt-speaking'],
+    isPreset: true
   }
 ]
 
@@ -54,6 +62,9 @@ interface Settings {
   apiBaseURL: string
   apiKey: string
   model: string
+  voiceApiBaseURL: string
+  voiceApiKey: string
+  voiceModel: string
   customModels: string[]
   customPrompt: string
 
@@ -71,6 +82,8 @@ interface Settings {
 
   audioInputDeviceId: string
   audioOutputDeviceId: string
+
+  writingContent: string
 }
 
 interface SettingsStore extends Settings {
@@ -86,6 +99,9 @@ const defaultSettings: Settings = {
   apiBaseURL: '',
   apiKey: '',
   model: '',
+  voiceApiBaseURL: '',
+  voiceApiKey: '',
+  voiceModel: '',
   customModels: [],
   customPrompt: PRESET_SCENE_PROMPTS[CODING_SCENE_ID],
   scenes: createPresetScenes(),
@@ -101,7 +117,9 @@ const defaultSettings: Settings = {
   hideDockIcon: false,
 
   audioInputDeviceId: '',
-  audioOutputDeviceId: ''
+  audioOutputDeviceId: '',
+
+  writingContent: ''
 }
 
 export const useSettingsStore = create<SettingsStore>()(

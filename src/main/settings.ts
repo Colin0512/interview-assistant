@@ -36,13 +36,17 @@ export const settings = {
   apiBaseURL: process.env.API_BASE_URL || '',
   apiKey: process.env.API_KEY || '',
   model: process.env.MODEL || '',
+  voiceApiBaseURL: '',
+  voiceApiKey: '',
+  voiceModel: '',
   customPrompt: '',
   screenshotAutoSave: false,
   screenshotDir: '',
   dashscopeApiKey: '',
   hideDockIcon: false,
   audioInputDeviceId: '',
-  audioOutputDeviceId: ''
+  audioOutputDeviceId: '',
+  writingContent: ''
 }
 
 export type AppSettings = typeof settings

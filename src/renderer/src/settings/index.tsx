@@ -11,6 +11,7 @@ import {
   Keyboard,
   FolderOpen,
   Mic,
+  PenLine,
   Plus,
   RotateCcw,
   X
@@ -47,6 +48,9 @@ export default function SettingsPage() {
     apiBaseURL,
     apiKey,
     model,
+    voiceApiBaseURL,
+    voiceApiKey,
+    voiceModel,
     scenes,
     activeSceneId,
     screenshotAutoSave,
@@ -54,6 +58,7 @@ export default function SettingsPage() {
     dashscopeApiKey,
     audioInputDeviceId,
     audioOutputDeviceId,
+    writingContent,
     hideDockIcon,
     updateSetting,
     setActiveScene,
@@ -62,6 +67,7 @@ export default function SettingsPage() {
     removeScene
   } = useSettingsStore()
   const [showApiKey, setShowApiKey] = useState(false)
+  const [showVoiceApiKey, setShowVoiceApiKey] = useState(false)
   const [showDashscopeApiKey, setShowDashscopeApiKey] = useState(false)
   const [addSceneOpen, setAddSceneOpen] = useState(false)
   const [newSceneName, setNewSceneName] = useState('')
@@ -178,8 +184,93 @@ export default function SettingsPage() {
               </label>
               <SelectModel value={model} onChange={(val) => updateSetting('model', val)} />
             </div>
+
+            <div className="border-t border-gray-400/50 pt-4">
+              <h3 className="text-sm font-semibold mb-3">口语低延迟接口</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">
+                    口语 API Base URL
+                    <span className="ml-2 text-xs font-light">
+                      纯语音回答专用，留空则复用上方接口
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={voiceApiBaseURL}
+                    onChange={(e) => updateSetting('voiceApiBaseURL', e.target.value)}
+                    className="w-60 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="百炼 OpenAI 兼容端点"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">口语 API Key</label>
+                  <div className="flex items-center w-60">
+                    <input
+                      type={showVoiceApiKey ? 'text' : 'password'}
+                      value={voiceApiKey}
+                      onChange={(e) => updateSetting('voiceApiKey', e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="输入口语接口 API Key"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowVoiceApiKey(!showVoiceApiKey)}
+                      className="border border-l-0 rounded-l-none rounded-r-md h-9 w-9 hover:border-none"
+                    >
+                      {showVoiceApiKey ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeOff className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">
+                    口语模型
+                    <span className="ml-2 text-xs font-light">推荐低延迟文本模型</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={voiceModel}
+                    onChange={(e) => updateSetting('voiceModel', e.target.value)}
+                    className="w-60 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="如 qwen3.7-flash"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Writing Content Settings */}
+        <div className="bg-gray-300/80 rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center">
+            <PenLine className="h-5 w-5 mr-2" />
+            写作内容
+          </h2>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">
+                写作内容问答
+                <span className="ml-2 text-xs font-light">
+                  保存一段写作内容，自动语音模式生成口语回答时会带上这段内容
+                </span>
+              </label>
+              <Textarea
+                value={writingContent}
+                onChange={(e) => updateSetting('writingContent', e.target.value)}
+                placeholder="请输入你在写作部分写下的内容，考官可能就此提问"
+                className="w-full min-h-32 max-h-80 bg-white mt-2"
+                rows={8}
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Transcription Settings */}
         <div className="bg-gray-300/80 rounded-lg p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center">
