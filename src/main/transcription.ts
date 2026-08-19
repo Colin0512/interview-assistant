@@ -59,7 +59,7 @@ function startTranscription(apiKey: string) {
         task_group: 'audio',
         task: 'asr',
         function: 'recognition',
-        model: 'fun-asr-realtime',
+        model: 'qwen-audio-3.0-asr-flash-streaming',
         parameters: {
           format: 'pcm',
           sample_rate: 16000
