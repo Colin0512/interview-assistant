@@ -27,7 +27,7 @@ process.on('uncaughtException', (error) => {
   console.error(error)
 })
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import './shortcuts'
+import { stopAutoVoiceMode } from './shortcuts'
 import './transcription'
 import { createWindow } from './main-window'
 import { initAutoUpdater } from './auto-updater'
@@ -94,6 +94,8 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   // Unregister all shortcuts when there is no window left
   globalShortcut.unregisterAll()
+  // Stop the ELLT auto-voice polling timer so it does not idle-spin on macOS
+  stopAutoVoiceMode()
   if (process.platform !== 'darwin') {
     app.quit()
   }

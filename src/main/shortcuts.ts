@@ -1,13 +1,20 @@
-﻿import { globalShortcut, ipcMain, screen } from 'electron'
+import { globalShortcut, ipcMain, screen } from 'electron'
 import type { BrowserWindow, Rectangle } from 'electron'
 import type { ModelMessage } from 'ai'
 import { applyContentProtection } from './main-window'
 import { takeScreenshot } from './take-screenshot'
 import { saveScreenshotToDisk } from './save-screenshot'
-import { getSolutionStream, getFollowUpStream, getGeneralStream } from './ai'
+import {
+  getSolutionStream,
+  getFollowUpStream,
+  getGeneralStream,
+  getVoiceStream,
+  getVoiceContextStream,
+  hasVoiceProviderCredentials
+} from './ai'
 import { state } from './state'
 import { settings } from './settings'
-import { getTranscriptionText, clearTranscriptionText } from './transcription'
+import { getTranscriptionText, clearTranscriptionText, getLastSentenceTime } from './transcription'
 
 /**
  * Extract meaningful error message from API errors
@@ -68,6 +75,7 @@ type AbortReason = 'user' | 'new-request'
 interface StreamContext {
   controller: AbortController
   reason: AbortReason | null
+  kind?: 'voice'
 }
 
 let currentStreamContext: StreamContext | null = null
@@ -76,6 +84,15 @@ let currentStreamContext: StreamContext | null = null
 let conversationMessages: ModelMessage[] = []
 let recentScreenshots: string[] = [] // 最近截图，水平预览 (限5张)
 let hasAppendSeparator = false
+let isCapturingScreenshot = false
+let screenshotCaptureGeneration = 0
+let pendingVoiceQuestion: string | null = null
+
+// Auto voice mode for ELLT speaking
+let autoVoiceMode = false
+let autoVoiceTimer: NodeJS.Timeout | null = null
+const AUTO_VOICE_SILENCE_MS = 1000
+const AUTO_VOICE_POLL_MS = 500
 
 // Command mode: triple-semicolon activation for single-letter shortcuts
 let commandMode = false
@@ -226,6 +243,26 @@ function abortCurrentStream(reason: AbortReason) {
   currentStreamContext.controller.abort()
 }
 
+async function captureScreenshotForRequest(): Promise<string | null> {
+  if (isCapturingScreenshot) return null
+
+  isCapturingScreenshot = true
+  const generation = ++screenshotCaptureGeneration
+  abortCurrentStream('new-request')
+  try {
+    const screenshotData = await Promise.race([
+      takeScreenshot(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+    ])
+    if (generation !== screenshotCaptureGeneration || !state.inCoderPage) return null
+    // A manual action may have started a stream while native capture was pending.
+    abortCurrentStream('new-request')
+    return screenshotData || null
+  } finally {
+    isCapturingScreenshot = false
+  }
+}
+
 /**
  * Toggle command mode on/off
  */
@@ -329,9 +366,9 @@ const callbacks: Record<string, () => void> = {
     const mainWindow = global.mainWindow
     if (!mainWindow || mainWindow.isDestroyed() || !state.inCoderPage || !settings.apiKey) return
 
-    abortCurrentStream('new-request')
+    pendingVoiceQuestion = null
     let loadingStarted = false
-    const screenshotData = await takeScreenshot()
+    const screenshotData = await captureScreenshotForRequest()
     if (screenshotData && mainWindow && !mainWindow.isDestroyed()) {
       saveScreenshotToDisk(screenshotData)
       const transcriptionText = getTranscriptionText()
@@ -422,13 +459,14 @@ const callbacks: Record<string, () => void> = {
           mainWindow.webContents.send('solution-error', extractErrorMessage(error))
         }
       } finally {
-        if (currentStreamContext === streamContext) {
+        const ownsStream = currentStreamContext === streamContext
+        if (ownsStream) {
           currentStreamContext = null
         }
         if (!streamStarted && streamContext.reason === 'user') {
           mainWindow.webContents.send('solution-stopped')
         }
-        if (loadingStarted && mainWindow && !mainWindow.isDestroyed()) {
+        if (ownsStream && loadingStarted && mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('ai-loading-end')
         }
       }
@@ -446,10 +484,9 @@ const callbacks: Record<string, () => void> = {
       return
     }
 
-    abortCurrentStream('new-request')
     let loadingStarted = false
 
-    const screenshotData = await takeScreenshot()
+    const screenshotData = await captureScreenshotForRequest()
     if (screenshotData && mainWindow && !mainWindow.isDestroyed()) {
       saveScreenshotToDisk(screenshotData)
       const transcriptionText = getTranscriptionText()
@@ -473,7 +510,10 @@ const callbacks: Record<string, () => void> = {
           }
         ]
       }
-      conversationMessages.push(newUserMessage)
+      conversationMessages = [
+        ...conversationMessages.filter((message) => message.role === 'user').slice(-4),
+        newUserMessage
+      ]
 
       const streamContext: StreamContext = {
         controller: new AbortController(),
@@ -547,13 +587,14 @@ const callbacks: Record<string, () => void> = {
           mainWindow.webContents.send('solution-error', extractErrorMessage(error))
         }
       } finally {
-        if (currentStreamContext === streamContext) {
+        const ownsStream = currentStreamContext === streamContext
+        if (ownsStream) {
           currentStreamContext = null
         }
         if (!streamStarted && streamContext.reason === 'user') {
           mainWindow.webContents.send('solution-stopped')
         }
-        if (loadingStarted && mainWindow && !mainWindow.isDestroyed()) {
+        if (ownsStream && loadingStarted && mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('ai-loading-end')
         }
       }
@@ -622,8 +663,174 @@ const callbacks: Record<string, () => void> = {
     const mainWindow = global.mainWindow
     if (!mainWindow || mainWindow.isDestroyed() || !state.inCoderPage) return
     clearTranscriptionText()
+    clearPendingVoiceQuestion()
     mainWindow.webContents.send('transcription-cleared')
+  },
+
+  // Voice trigger: reuse screenshots when available, otherwise use the low-latency text model.
+  voiceTrigger: async () => {
+    const mainWindow = global.mainWindow
+    if (!mainWindow || mainWindow.isDestroyed() || !state.inCoderPage || isCapturingScreenshot) {
+      return
+    }
+
+    const transcriptionText = getTranscriptionText().trim()
+    const hasVisualContext = recentScreenshots.length > 0
+    const hasApiCredentials = hasVisualContext
+      ? Boolean(settings.apiKey)
+      : hasVoiceProviderCredentials()
+
+    if (transcriptionText) {
+      if (!hasApiCredentials) {
+        // Surface a clear error instead of silently dropping the question.
+        clearTranscriptionText()
+        mainWindow.webContents.send('transcription-cleared')
+        mainWindow.webContents.send('solution-error', '请先在设置中配置 API Key')
+        return
+      }
+      pendingVoiceQuestion = transcriptionText
+      clearTranscriptionText()
+      mainWindow.webContents.send('transcription-cleared')
+    }
+    if (!pendingVoiceQuestion) return
+
+    abortCurrentStream('new-request')
+    const question = pendingVoiceQuestion
+    const streamContext: StreamContext = {
+      controller: new AbortController(),
+      reason: null,
+      kind: 'voice'
+    }
+    currentStreamContext = streamContext
+
+    const visualMessages: ModelMessage[] = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: `考官提问：${question}` },
+          ...recentScreenshots.map((image) => ({ type: 'image' as const, image }))
+        ]
+      }
+    ]
+
+    mainWindow.webContents.send('solution-clear')
+    if (hasVisualContext) {
+      mainWindow.webContents.send('screenshots-updated', recentScreenshots)
+    }
+    mainWindow.webContents.send('ai-loading-start')
+
+    let receivedContent = false
+    try {
+      const voiceStream = hasVisualContext
+        ? getVoiceContextStream(visualMessages, streamContext.controller.signal)
+        : getVoiceStream(question, settings.writingContent, streamContext.controller.signal)
+
+      for await (const chunk of voiceStream) {
+        if (streamContext.controller.signal.aborted) break
+        if (chunk) receivedContent = true
+        mainWindow.webContents.send('solution-chunk', chunk)
+      }
+
+      if (streamContext.controller.signal.aborted) {
+        if (streamContext.reason === 'user') {
+          mainWindow.webContents.send('solution-stopped')
+        }
+      } else if (receivedContent) {
+        pendingVoiceQuestion = null
+        mainWindow.webContents.send('solution-complete')
+      } else {
+        mainWindow.webContents.send('solution-error', '模型未返回内容，请按 V 重试')
+      }
+    } catch (error) {
+      if (streamContext.controller.signal.aborted) {
+        if (streamContext.reason === 'user') {
+          mainWindow.webContents.send('solution-stopped')
+        }
+      } else {
+        console.error('Error streaming voice response:', error)
+        mainWindow.webContents.send('solution-error', extractErrorMessage(error))
+      }
+    } finally {
+      const ownsStream = currentStreamContext === streamContext
+      if (ownsStream) {
+        currentStreamContext = null
+      }
+      if (ownsStream && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ai-loading-end')
+      }
+    }
+  },
+
+  clearVoiceContext: () => {
+    const mainWindow = global.mainWindow
+    if (!mainWindow || mainWindow.isDestroyed() || !state.inCoderPage) return
+
+    abortCurrentStream('new-request')
+    screenshotCaptureGeneration++
+    conversationMessages = []
+    recentScreenshots = []
+    hasAppendSeparator = false
+    pendingVoiceQuestion = null
+    clearTranscriptionText()
+    mainWindow.webContents.send('transcription-cleared')
+    mainWindow.webContents.send('solution-clear')
+    mainWindow.webContents.send('screenshots-updated', recentScreenshots)
   }
+}
+
+function startAutoVoiceMode() {
+  if (autoVoiceMode) return
+  autoVoiceMode = true
+
+  autoVoiceTimer = setInterval(() => {
+    if (!autoVoiceMode) return
+
+    const mainWindow = global.mainWindow
+    if (!mainWindow || mainWindow.isDestroyed() || !state.inCoderPage) return
+
+    const lastTime = getLastSentenceTime()
+    if (lastTime > 0 && Date.now() - lastTime >= AUTO_VOICE_SILENCE_MS) {
+      const text = getTranscriptionText()
+      if (text.trim()) {
+        // New transcription came in while generating: abort and restart
+        if (currentStreamContext) {
+          abortCurrentStream('new-request')
+        }
+        callbacks.voiceTrigger()
+      }
+    }
+  }, AUTO_VOICE_POLL_MS)
+}
+
+export function stopAutoVoiceMode() {
+  autoVoiceMode = false
+  if (autoVoiceTimer) {
+    clearInterval(autoVoiceTimer)
+    autoVoiceTimer = null
+  }
+  clearPendingVoiceQuestion()
+  screenshotCaptureGeneration++
+  abortCurrentStream('new-request')
+}
+
+function clearPendingVoiceQuestion() {
+  pendingVoiceQuestion = null
+}
+
+function endVoiceSession() {
+  stopAutoVoiceMode()
+  clearPendingVoiceQuestion()
+  screenshotCaptureGeneration++
+  conversationMessages = []
+  recentScreenshots = []
+  hasAppendSeparator = false
+  clearTranscriptionText()
+
+  const mainWindow = global.mainWindow
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send('transcription-cleared')
+  mainWindow.webContents.send('solution-clear')
+  mainWindow.webContents.send('screenshots-updated', recentScreenshots)
 }
 
 function unregisterShortcut(action: string) {
@@ -806,4 +1013,24 @@ ipcMain.handle('sendFollowUpQuestion', async (_event, question: string) => {
   }
 
   return { success: true }
+})
+
+ipcMain.handle('start-auto-voice-mode', () => {
+  startAutoVoiceMode()
+})
+
+ipcMain.handle('stop-auto-voice-mode', () => {
+  stopAutoVoiceMode()
+})
+
+ipcMain.handle('end-voice-session', () => {
+  endVoiceSession()
+})
+
+ipcMain.handle('clear-pending-voice-question', () => {
+  clearPendingVoiceQuestion()
+})
+
+ipcMain.handle('voice-trigger', async () => {
+  await callbacks.voiceTrigger()
 })

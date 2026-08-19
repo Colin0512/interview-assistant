@@ -69,6 +69,75 @@ export function getFollowUpStream(
   return textStream
 }
 
+function resolveVoiceProvider() {
+  const useDedicatedProvider = Boolean(settings.voiceApiBaseURL && settings.voiceApiKey)
+  return {
+    baseURL: useDedicatedProvider ? settings.voiceApiBaseURL : settings.apiBaseURL,
+    apiKey: useDedicatedProvider ? settings.voiceApiKey : settings.apiKey,
+    model: useDedicatedProvider ? settings.voiceModel || 'qwen3.7-flash' : getModel(settings)
+  }
+}
+
+export function hasVoiceProviderCredentials(): boolean {
+  return Boolean(resolveVoiceProvider().apiKey)
+}
+
+export function getVoiceStream(
+  transcriptionText: string,
+  writingContent: string | undefined,
+  abortSignal?: AbortSignal
+) {
+  const provider = resolveVoiceProvider()
+  const openai = createOpenAI({
+    baseURL: provider.baseURL,
+    apiKey: provider.apiKey
+  })
+
+  const extraContext = writingContent
+    ? `\n\n用户在写作部分写了以下内容（考官可能就此提问）：\n${writingContent}`
+    : ''
+
+  const messages: ModelMessage[] = [
+    {
+      role: 'user',
+      content: [{ type: 'text', text: `考官提问：${transcriptionText}${extraContext}` }]
+    }
+  ]
+
+  const { textStream } = streamText({
+    model: openai.chat(provider.model),
+    system: getSystemPrompt(
+      '你正在辅助一场口语考试。回答必须简短（3-5句），口语化，可直接念出。用英语回答（这是英语考试）。'
+    ),
+    messages,
+    abortSignal,
+    onError: (err) => {
+      throw err.error ?? err
+    }
+  })
+  return textStream
+}
+
+export function getVoiceContextStream(messages: ModelMessage[], abortSignal?: AbortSignal) {
+  const openai = createOpenAI({
+    baseURL: settings.apiBaseURL,
+    apiKey: settings.apiKey
+  })
+
+  const { textStream } = streamText({
+    model: openai.chat(getModel(settings)),
+    system: getSystemPrompt(
+      '结合已有截图和考官刚才的问题，直接输出可念的英文回答。回答必须简短（3-5句），不要重复题目或添加中文解释。'
+    ),
+    messages,
+    abortSignal,
+    onError: (err) => {
+      throw err.error ?? err
+    }
+  })
+  return textStream
+}
+
 export function getGeneralStream(messages: ModelMessage[], abortSignal?: AbortSignal) {
   const openai = createOpenAI({
     baseURL: settings.apiBaseURL,

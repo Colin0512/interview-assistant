@@ -10,6 +10,7 @@ let isTranscribing = false
 let taskStarted = false
 let accumulatedText = ''
 let currentPartial = ''
+let lastSentenceTime = 0
 
 function sendToRenderer(channel: string, ...args: unknown[]) {
   const mainWindow = global.mainWindow
@@ -35,6 +36,8 @@ function startTranscription(apiKey: string) {
   if (isTranscribing) return
 
   cleanup()
+  clearTranscriptionText()
+  sendToRenderer('transcription-cleared')
   isTranscribing = true
   taskId = randomUUID()
 
@@ -86,6 +89,7 @@ function startTranscription(apiKey: string) {
             accumulatedText += (accumulatedText ? '' : '') + text
           }
           currentPartial = ''
+          lastSentenceTime = Date.now()
         } else {
           currentPartial = text
         }
@@ -102,12 +106,16 @@ function startTranscription(apiKey: string) {
         console.error('Transcription task failed:', errorMsg)
         sendToRenderer('transcription-error', errorMsg)
         cleanup()
+        clearTranscriptionText()
+        sendToRenderer('transcription-cleared')
         sendToRenderer('transcription-stopped')
         return
       }
 
       if (event === 'task-finished') {
         cleanup()
+        clearTranscriptionText()
+        sendToRenderer('transcription-cleared')
         sendToRenderer('transcription-stopped')
       }
     } catch (e) {
@@ -119,12 +127,16 @@ function startTranscription(apiKey: string) {
     console.error('Transcription WebSocket error:', err)
     sendToRenderer('transcription-error', err.message || 'WebSocket 连接失败')
     cleanup()
+    clearTranscriptionText()
+    sendToRenderer('transcription-cleared')
     sendToRenderer('transcription-stopped')
   })
 
   ws.on('close', () => {
     if (isTranscribing) {
       isTranscribing = false
+      clearTranscriptionText()
+      sendToRenderer('transcription-cleared')
       sendToRenderer('transcription-stopped')
     }
     ws = null
@@ -151,6 +163,8 @@ function stopTranscription() {
 
   isTranscribing = false
   cleanup()
+  clearTranscriptionText()
+  sendToRenderer('transcription-cleared')
   sendToRenderer('transcription-stopped')
 }
 
@@ -166,6 +180,7 @@ export function getTranscriptionText(): string {
 export function clearTranscriptionText() {
   accumulatedText = ''
   currentPartial = ''
+  lastSentenceTime = 0
 }
 
 ipcMain.handle('start-transcription', (_event, apiKey: string) => {
@@ -187,3 +202,7 @@ ipcMain.handle('get-transcription-text', () => {
 ipcMain.handle('clear-transcription-text', () => {
   clearTranscriptionText()
 })
+
+export function getLastSentenceTime(): number {
+  return lastSentenceTime
+}
