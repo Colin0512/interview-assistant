@@ -82,34 +82,25 @@ export function hasVoiceProviderCredentials(): boolean {
   return Boolean(resolveVoiceProvider().apiKey)
 }
 
-export function getVoiceStream(
-  transcriptionText: string,
-  writingContent: string | undefined,
-  abortSignal?: AbortSignal
-) {
-  const provider = resolveVoiceProvider()
+export function getVisualExtractionStream(image: string, abortSignal?: AbortSignal) {
   const openai = createOpenAI({
-    baseURL: provider.baseURL,
-    apiKey: provider.apiKey
+    baseURL: settings.apiBaseURL,
+    apiKey: settings.apiKey
   })
 
-  const extraContext = writingContent
-    ? `\n\n用户在写作部分写了以下内容（考官可能就此提问）：\n${writingContent}`
-    : ''
-
-  const messages: ModelMessage[] = [
-    {
-      role: 'user',
-      content: [{ type: 'text', text: `考官提问：${transcriptionText}${extraContext}` }]
-    }
-  ]
-
   const { textStream } = streamText({
-    model: openai.chat(provider.model),
-    system: getSystemPrompt(
-      '你正在辅助一场口语考试。回答必须简短（3-5句），口语化，可直接念出。用英语回答（这是英语考试）。'
-    ),
-    messages,
+    model: openai.chat(getModel(settings)),
+    system:
+      '分析这张截图，可能是阅读材料（文字）或图片；若主要是文字/阅读材料，忠实转写或提取关键内容，不评论、不解答；若包含图片，客观详细地描述图片内容；输出一段简洁文字作为后续口语问答的上下文依据；用英语输出（英语考试场景），必要时可夹杂简短中文说明。',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '这是屏幕截图，请按上述要求识别并输出上下文。' },
+          { type: 'image', image }
+        ]
+      }
+    ],
     abortSignal,
     onError: (err) => {
       throw err.error ?? err
@@ -118,18 +109,34 @@ export function getVoiceStream(
   return textStream
 }
 
-export function getVoiceContextStream(messages: ModelMessage[], abortSignal?: AbortSignal) {
+export function getVoiceAnswerStream(
+  question: string,
+  visualContext: string | undefined,
+  writingContext: string | undefined,
+  abortSignal?: AbortSignal
+) {
+  const provider = resolveVoiceProvider()
   const openai = createOpenAI({
-    baseURL: settings.apiBaseURL,
-    apiKey: settings.apiKey
+    baseURL: provider.baseURL,
+    apiKey: provider.apiKey
   })
 
+  const visualSection = visualContext ? `\n\n截图上下文：\n${visualContext}` : ''
+  const writingSection = writingContext
+    ? `\n\n用户在写作部分写了以下内容（考官可能就此提问）：\n${writingContext}`
+    : ''
+
   const { textStream } = streamText({
-    model: openai.chat(getModel(settings)),
+    model: openai.chat(provider.model),
     system: getSystemPrompt(
-      '结合已有截图和考官刚才的问题，直接输出可念的英文回答。回答必须简短（3-5句），不要重复题目或添加中文解释。'
+      '你正在辅助一场口语考试。回答必须简短（3-5句），口语化，可直接念出。用英语回答（这是英语考试）。'
     ),
-    messages,
+    messages: [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: `考官提问：${question}${visualSection}${writingSection}` }]
+      }
+    ],
     abortSignal,
     onError: (err) => {
       throw err.error ?? err

@@ -8,8 +8,8 @@ import {
   getSolutionStream,
   getFollowUpStream,
   getGeneralStream,
-  getVoiceStream,
-  getVoiceContextStream,
+  getVisualExtractionStream,
+  getVoiceAnswerStream,
   hasVoiceProviderCredentials
 } from './ai'
 import { state } from './state'
@@ -92,6 +92,7 @@ let hasAppendSeparator = false
 let isCapturingScreenshot = false
 let screenshotCaptureGeneration = 0
 let pendingVoiceQuestion: string | null = null
+let visualContextText: string | null = null
 
 // Auto voice mode for ELLT speaking
 let autoVoiceMode = false
@@ -248,6 +249,69 @@ function abortCurrentStream(reason: AbortReason) {
   currentStreamContext.controller.abort()
 }
 
+async function extractVisualContext(screenshotData: string) {
+  const mainWindow = global.mainWindow
+  if (!mainWindow || mainWindow.isDestroyed()) return
+
+  const streamContext: StreamContext = {
+    controller: new AbortController(),
+    reason: null
+  }
+  currentStreamContext = streamContext
+  mainWindow.webContents.send('ai-loading-start')
+
+  let accumulated = ''
+  let succeeded = false
+  const MAX_RETRIES = 3
+
+  try {
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      if (streamContext.controller.signal.aborted) break
+      try {
+        const extractionStream = getVisualExtractionStream(
+          screenshotData,
+          streamContext.controller.signal
+        )
+        for await (const chunk of extractionStream) {
+          if (streamContext.controller.signal.aborted) break
+          accumulated += chunk
+          mainWindow.webContents.send('solution-chunk', chunk)
+        }
+        if (streamContext.controller.signal.aborted) break
+        succeeded = true
+        break
+      } catch (error) {
+        if (streamContext.controller.signal.aborted) break
+        if (attempt === MAX_RETRIES) {
+          console.error('Error extracting visual context:', error)
+          mainWindow.webContents.send('solution-error', '视觉识别失败，请重新截图')
+          break
+        }
+        console.warn(`Visual extraction attempt ${attempt} failed, retrying...`, error)
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
+    }
+
+    const ownsStream = currentStreamContext === streamContext
+    if (streamContext.controller.signal.aborted) {
+      if (streamContext.reason === 'user') {
+        mainWindow.webContents.send('solution-stopped')
+      }
+    } else if (succeeded && ownsStream) {
+      visualContextText = accumulated
+      mainWindow.webContents.send('solution-complete')
+    }
+  } finally {
+    const ownsStream = currentStreamContext === streamContext
+    if (ownsStream) {
+      currentStreamContext = null
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ai-loading-end')
+      }
+    }
+  }
+}
+
 async function captureScreenshotForRequest(): Promise<string | null> {
   if (isCapturingScreenshot) {
     console.warn('Screenshot capture already in progress, ignoring new request')
@@ -379,6 +443,15 @@ const callbacks: Record<string, () => void> = {
     const screenshotData = await captureScreenshotForRequest()
     if (screenshotData && mainWindow && !mainWindow.isDestroyed()) {
       saveScreenshotToDisk(screenshotData)
+      if (autoVoiceMode) {
+        recentScreenshots = [screenshotData]
+        hasAppendSeparator = false
+        mainWindow.webContents.send('solution-clear')
+        mainWindow.webContents.send('screenshots-updated', recentScreenshots)
+        mainWindow.webContents.send('screenshot-taken', screenshotData)
+        extractVisualContext(screenshotData)
+        return
+      }
       const transcriptionText = getTranscriptionText()
       if (transcriptionText) {
         clearTranscriptionText()
@@ -685,10 +758,7 @@ const callbacks: Record<string, () => void> = {
     }
 
     const transcriptionText = getTranscriptionText().trim()
-    const hasVisualContext = recentScreenshots.length > 0
-    const hasApiCredentials = hasVisualContext
-      ? Boolean(settings.apiKey)
-      : hasVoiceProviderCredentials()
+    const hasApiCredentials = hasVoiceProviderCredentials()
 
     if (transcriptionText) {
       if (!hasApiCredentials) {
@@ -713,27 +783,20 @@ const callbacks: Record<string, () => void> = {
     }
     currentStreamContext = streamContext
 
-    const visualMessages: ModelMessage[] = [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: `考官提问：${question}` },
-          ...recentScreenshots.map((image) => ({ type: 'image' as const, image }))
-        ]
-      }
-    ]
-
     mainWindow.webContents.send('solution-clear')
-    if (hasVisualContext) {
+    if (recentScreenshots.length > 0) {
       mainWindow.webContents.send('screenshots-updated', recentScreenshots)
     }
     mainWindow.webContents.send('ai-loading-start')
 
     let receivedContent = false
     try {
-      const voiceStream = hasVisualContext
-        ? getVoiceContextStream(visualMessages, streamContext.controller.signal)
-        : getVoiceStream(question, settings.writingContent, streamContext.controller.signal)
+      const voiceStream = getVoiceAnswerStream(
+        question,
+        visualContextText ?? undefined,
+        settings.writingContent,
+        streamContext.controller.signal
+      )
 
       for await (const chunk of voiceStream) {
         if (streamContext.controller.signal.aborted) break
@@ -784,6 +847,7 @@ const callbacks: Record<string, () => void> = {
     recentScreenshots = []
     hasAppendSeparator = false
     pendingVoiceQuestion = null
+    visualContextText = null
     clearTranscriptionText()
     mainWindow.webContents.send('transcription-cleared')
     mainWindow.webContents.send('solution-clear')
@@ -840,6 +904,7 @@ function endVoiceSession() {
   conversationMessages = []
   recentScreenshots = []
   hasAppendSeparator = false
+  visualContextText = null
   clearTranscriptionText()
 
   const mainWindow = global.mainWindow
