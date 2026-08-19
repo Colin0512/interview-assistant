@@ -14,7 +14,12 @@ import {
 } from './ai'
 import { state } from './state'
 import { settings } from './settings'
-import { getTranscriptionText, clearTranscriptionText, getLastSentenceTime } from './transcription'
+import {
+  getTranscriptionText,
+  clearTranscriptionText,
+  getLastSentenceTime,
+  setPreserveTextOnTermination
+} from './transcription'
 
 /**
  * Extract meaningful error message from API errors
@@ -244,7 +249,10 @@ function abortCurrentStream(reason: AbortReason) {
 }
 
 async function captureScreenshotForRequest(): Promise<string | null> {
-  if (isCapturingScreenshot) return null
+  if (isCapturingScreenshot) {
+    console.warn('Screenshot capture already in progress, ignoring new request')
+    return null
+  }
 
   isCapturingScreenshot = true
   const generation = ++screenshotCaptureGeneration
@@ -434,11 +442,12 @@ const callbacks: Record<string, () => void> = {
           }
         }
 
+        const ownsStream = currentStreamContext === streamContext
         if (streamContext.controller.signal.aborted) {
           if (streamContext.reason === 'user') {
             mainWindow.webContents.send('solution-stopped')
           }
-        } else if (endedNaturally) {
+        } else if (ownsStream && endedNaturally) {
           // Add assistant response to conversation history
           if (assistantResponse) {
             conversationMessages.push({
@@ -562,11 +571,12 @@ const callbacks: Record<string, () => void> = {
           }
         }
 
+        const ownsStream = currentStreamContext === streamContext
         if (streamContext.controller.signal.aborted) {
           if (streamContext.reason === 'user') {
             mainWindow.webContents.send('solution-stopped')
           }
-        } else if (endedNaturally) {
+        } else if (ownsStream && endedNaturally) {
           // Add assistant response to conversation history
           if (assistantResponse) {
             conversationMessages.push({
@@ -731,15 +741,18 @@ const callbacks: Record<string, () => void> = {
         mainWindow.webContents.send('solution-chunk', chunk)
       }
 
+      const ownsStream = currentStreamContext === streamContext
       if (streamContext.controller.signal.aborted) {
         if (streamContext.reason === 'user') {
           mainWindow.webContents.send('solution-stopped')
         }
-      } else if (receivedContent) {
-        pendingVoiceQuestion = null
-        mainWindow.webContents.send('solution-complete')
-      } else {
-        mainWindow.webContents.send('solution-error', '模型未返回内容，请按 V 重试')
+      } else if (ownsStream) {
+        if (receivedContent) {
+          pendingVoiceQuestion = null
+          mainWindow.webContents.send('solution-complete')
+        } else {
+          mainWindow.webContents.send('solution-error', '模型未返回内容，请按 V 重试')
+        }
       }
     } catch (error) {
       if (streamContext.controller.signal.aborted) {
@@ -781,6 +794,7 @@ const callbacks: Record<string, () => void> = {
 function startAutoVoiceMode() {
   if (autoVoiceMode) return
   autoVoiceMode = true
+  setPreserveTextOnTermination(true)
 
   autoVoiceTimer = setInterval(() => {
     if (!autoVoiceMode) return
@@ -792,8 +806,9 @@ function startAutoVoiceMode() {
     if (lastTime > 0 && Date.now() - lastTime >= AUTO_VOICE_SILENCE_MS) {
       const text = getTranscriptionText()
       if (text.trim()) {
-        // New transcription came in while generating: abort and restart
-        if (currentStreamContext) {
+        // New transcription came in while generating: abort and restart.
+        // Only preempt voice streams; leave manual screenshot/follow-up streams alone.
+        if (currentStreamContext?.kind === 'voice') {
           abortCurrentStream('new-request')
         }
         callbacks.voiceTrigger()
@@ -804,6 +819,7 @@ function startAutoVoiceMode() {
 
 export function stopAutoVoiceMode() {
   autoVoiceMode = false
+  setPreserveTextOnTermination(false)
   if (autoVoiceTimer) {
     clearInterval(autoVoiceTimer)
     autoVoiceTimer = null
@@ -929,6 +945,11 @@ ipcMain.handle('sendFollowUpQuestion', async (_event, question: string) => {
     return { success: false, error: 'No active conversation' }
   }
 
+  if (isCapturingScreenshot) {
+    console.warn('Screenshot capture in progress, ignoring follow-up question')
+    return { success: false, error: 'Screenshot capture in progress' }
+  }
+
   abortCurrentStream('new-request')
   const streamContext: StreamContext = {
     controller: new AbortController(),
@@ -970,11 +991,12 @@ ipcMain.handle('sendFollowUpQuestion', async (_event, question: string) => {
       }
     }
 
+    const ownsStream = currentStreamContext === streamContext
     if (streamContext.controller.signal.aborted) {
       if (streamContext.reason === 'user') {
         mainWindow.webContents.send('solution-stopped')
       }
-    } else if (endedNaturally) {
+    } else if (ownsStream && endedNaturally) {
       // Update conversation history with user question and assistant response
       conversationMessages.push({
         role: 'user',

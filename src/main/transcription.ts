@@ -11,6 +11,9 @@ let taskStarted = false
 let accumulatedText = ''
 let currentPartial = ''
 let lastSentenceTime = 0
+// When true (auto voice mode), termination handlers keep accumulated text so the
+// auto voice timer can still consume it via lastSentenceTime instead of dropping it.
+let preserveTextOnTermination = false
 
 function sendToRenderer(channel: string, ...args: unknown[]) {
   const mainWindow = global.mainWindow
@@ -106,16 +109,14 @@ function startTranscription(apiKey: string) {
         console.error('Transcription task failed:', errorMsg)
         sendToRenderer('transcription-error', errorMsg)
         cleanup()
-        clearTranscriptionText()
-        sendToRenderer('transcription-cleared')
+        clearTranscriptionOnTermination()
         sendToRenderer('transcription-stopped')
         return
       }
 
       if (event === 'task-finished') {
         cleanup()
-        clearTranscriptionText()
-        sendToRenderer('transcription-cleared')
+        clearTranscriptionOnTermination()
         sendToRenderer('transcription-stopped')
       }
     } catch (e) {
@@ -127,16 +128,14 @@ function startTranscription(apiKey: string) {
     console.error('Transcription WebSocket error:', err)
     sendToRenderer('transcription-error', err.message || 'WebSocket 连接失败')
     cleanup()
-    clearTranscriptionText()
-    sendToRenderer('transcription-cleared')
+    clearTranscriptionOnTermination()
     sendToRenderer('transcription-stopped')
   })
 
   ws.on('close', () => {
     if (isTranscribing) {
       isTranscribing = false
-      clearTranscriptionText()
-      sendToRenderer('transcription-cleared')
+      clearTranscriptionOnTermination()
       sendToRenderer('transcription-stopped')
     }
     ws = null
@@ -163,8 +162,7 @@ function stopTranscription() {
 
   isTranscribing = false
   cleanup()
-  clearTranscriptionText()
-  sendToRenderer('transcription-cleared')
+  clearTranscriptionOnTermination()
   sendToRenderer('transcription-stopped')
 }
 
@@ -181,6 +179,16 @@ export function clearTranscriptionText() {
   accumulatedText = ''
   currentPartial = ''
   lastSentenceTime = 0
+}
+
+export function setPreserveTextOnTermination(preserve: boolean) {
+  preserveTextOnTermination = preserve
+}
+
+function clearTranscriptionOnTermination() {
+  if (preserveTextOnTermination) return
+  clearTranscriptionText()
+  sendToRenderer('transcription-cleared')
 }
 
 ipcMain.handle('start-transcription', (_event, apiKey: string) => {
