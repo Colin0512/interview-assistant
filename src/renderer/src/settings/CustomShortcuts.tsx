@@ -98,6 +98,18 @@ export function CustomShortcuts() {
             shortcut="clearTranscription"
             disabled={!dashscopeApiKey}
           />
+          <Shortcut
+            label="立即生成口语回答"
+            description="立即提交当前转录；有截图时保留图片上下文"
+            shortcut="voiceTrigger"
+            disabled={!dashscopeApiKey}
+          />
+          <Shortcut
+            label="清除口语视觉上下文"
+            description="切换考试阶段时清除截图和AI上下文，转录保持开启"
+            shortcut="clearVoiceContext"
+            disabled={!dashscopeApiKey}
+          />
         </div>
 
         {/* Navigation */}

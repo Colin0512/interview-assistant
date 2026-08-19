@@ -3,6 +3,7 @@ import { useSettingsStore } from '@/lib/store/settings'
 let mediaStream: MediaStream | null = null
 let audioContext: AudioContext | null = null
 let processor: ScriptProcessorNode | null = null
+let captureGeneration = 0
 
 function downsampleAndSend(float32: Float32Array): void {
   const int16 = new Int16Array(float32.length)
@@ -29,7 +30,8 @@ async function openSystemAudioStream(): Promise<MediaStream> {
   return stream
 }
 
-export async function startAudioCapture(): Promise<void> {
+export async function startAudioCapture(): Promise<boolean> {
+  const generation = ++captureGeneration
   const { audioInputDeviceId, audioOutputDeviceId } = useSettingsStore.getState()
 
   let stream: MediaStream
@@ -42,6 +44,11 @@ export async function startAudioCapture(): Promise<void> {
     }
   } else {
     stream = await openSystemAudioStream()
+  }
+
+  if (generation !== captureGeneration) {
+    stream.getTracks().forEach((track) => track.stop())
+    return false
   }
 
   mediaStream = stream
@@ -66,9 +73,11 @@ export async function startAudioCapture(): Promise<void> {
   }
   source.connect(processor)
   processor.connect(audioContext.destination)
+  return true
 }
 
 export function stopAudioCapture(): void {
+  captureGeneration++
   if (processor) {
     processor.disconnect()
     processor = null

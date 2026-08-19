@@ -174,7 +174,14 @@ const api = {
   },
   removeTranscriptionClearedListener: () => {
     ipcRenderer.removeAllListeners('transcription-cleared')
-  }
+  },
+
+  // Auto voice mode
+  startAutoVoiceMode: () => ipcRenderer.invoke('start-auto-voice-mode'),
+  stopAutoVoiceMode: () => ipcRenderer.invoke('stop-auto-voice-mode'),
+  endVoiceSession: () => ipcRenderer.invoke('end-voice-session'),
+  clearPendingVoiceQuestion: () => ipcRenderer.invoke('clear-pending-voice-question'),
+  voiceTrigger: () => ipcRenderer.invoke('voice-trigger')
 }
 
 export type MainAPI = typeof api

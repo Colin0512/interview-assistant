@@ -55,6 +55,7 @@ export function AppContent() {
 
     // Cleanup listeners on unmount
     return () => {
+      setIsLoading(false)
       window.api.removeScreenshotListener()
       window.api.removeScreenshotsUpdatedListener()
       window.api.removeSolutionChunkListener()
