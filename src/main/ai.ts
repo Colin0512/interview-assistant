@@ -118,6 +118,7 @@ export function getVoiceAnswerStream(
   question: string,
   visualContext: string | undefined,
   writingContext: string | undefined,
+  personalContext: string | undefined,
   history: VoiceTurn[],
   abortSignal?: AbortSignal
 ) {
@@ -131,6 +132,10 @@ export function getVoiceAnswerStream(
     ? '以下历史对话仅供理解上下文（不要复述，直接回答当前问题）：\n' +
       history.map((turn) => '考官：' + turn.question + '\n考生：' + turn.answer).join('\n') +
       '\n\n'
+    : ''
+  const personalSection = personalContext
+    ? '\n\nYou are the candidate taking this exam. The following is YOUR personal information. Answer in first person as this candidate, in English. Do NOT say you are an AI assistant:\n' +
+      personalContext
     : ''
   const visualSection = visualContext ? `\n\n截图上下文：\n${visualContext}` : ''
   const writingSection = writingContext
@@ -148,7 +153,7 @@ export function getVoiceAnswerStream(
         content: [
           {
             type: 'text',
-            text: `${historySection}考官提问：${question}${visualSection}${writingSection}`
+            text: `${historySection}考官提问：${question}${personalSection}${visualSection}${writingSection}`
           }
         ]
       }

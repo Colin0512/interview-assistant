@@ -12,6 +12,7 @@ import {
   FolderOpen,
   Mic,
   PenLine,
+  User,
   Plus,
   RotateCcw,
   X
@@ -59,6 +60,7 @@ export default function SettingsPage() {
     audioInputDeviceId,
     audioOutputDeviceId,
     writingContent,
+    personalInfo,
     hideDockIcon,
     updateSetting,
     setActiveScene,
@@ -241,6 +243,32 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Personal Info Settings */}
+        <div className="bg-gray-300/80 rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center">
+            <User className="h-5 w-5 mr-2" />
+            个人资料
+          </h2>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">
+                个人资料（Stage 1 个人问答用）
+                <span className="ml-2 text-xs font-light">
+                  填写姓名、来自哪里、学校、专业、兴趣爱好等，个人问答时据此生成回答
+                </span>
+              </label>
+              <Textarea
+                value={personalInfo}
+                onChange={(e) => updateSetting('personalInfo', e.target.value)}
+                placeholder="例如：My name is Li Ming. I am from Changsha. I study computer science at Hunan University. I like playing basketball and reading."
+                className="w-full min-h-24 max-h-60 bg-white mt-2"
+                rows={5}
+              />
             </div>
           </div>
         </div>

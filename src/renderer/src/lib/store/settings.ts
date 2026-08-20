@@ -84,6 +84,7 @@ interface Settings {
   audioOutputDeviceId: string
 
   writingContent: string
+  personalInfo: string
 }
 
 interface SettingsStore extends Settings {
@@ -119,7 +120,8 @@ const defaultSettings: Settings = {
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
 
-  writingContent: ''
+  writingContent: '',
+  personalInfo: ''
 }
 
 export const useSettingsStore = create<SettingsStore>()(

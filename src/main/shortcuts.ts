@@ -844,16 +844,18 @@ const callbacks: Record<string, () => void> = {
     let receivedContent = false
     try {
       const visualContextForAnswer = visualContext?.text
+      const isWriting = !visualContext && checkWritingQuestion(question)
       const writingContextForAnswer =
-        !visualContext && checkWritingQuestion(question) && settings.writingContent
-          ? settings.writingContent
-          : undefined
+        isWriting && settings.writingContent ? settings.writingContent : undefined
+      const personalContextForAnswer =
+        !visualContext && !isWriting ? settings.personalInfo || undefined : undefined
 
       let answer = ''
       const voiceStream = getVoiceAnswerStream(
         question,
         visualContextForAnswer,
         writingContextForAnswer,
+        personalContextForAnswer,
         voiceHistory,
         streamContext.controller.signal
       )

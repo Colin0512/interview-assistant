@@ -46,7 +46,8 @@ export const settings = {
   hideDockIcon: false,
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
-  writingContent: ''
+  writingContent: '',
+  personalInfo: ''
 }
 
 export type AppSettings = typeof settings
