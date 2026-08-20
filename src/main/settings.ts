@@ -47,7 +47,7 @@ export const settings = {
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
   writingContent: '',
-  personalInfo: ''
+  personalInfo: process.env.PERSONAL_INFO || ''
 }
 
 export type AppSettings = typeof settings
