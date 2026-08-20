@@ -177,7 +177,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'interview-coder-settings',
-      version: 7,
+      version: 8,
       migrate: (persisted, version) => {
         const state = persisted as Partial<Settings>
         // Drop the legacy codeLanguage field (language now lives in the prompt text)
@@ -193,6 +193,16 @@ export const useSettingsStore = create<SettingsStore>()(
             activeSceneId = id
           }
           return { ...state, scenes, activeSceneId }
+        }
+        if (version < 8) {
+          // Reset the ELLT speaking preset prompt to the updated default
+          const scenes = state.scenes
+          if (Array.isArray(scenes)) {
+            const ellt = scenes.find((s) => s.id === 'oxford-ellt-speaking')
+            if (ellt && ellt.isPreset) {
+              ellt.prompt = PRESET_SCENE_PROMPTS['oxford-ellt-speaking']
+            }
+          }
         }
         return state
       },
