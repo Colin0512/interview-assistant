@@ -91,7 +91,7 @@ export function getVisualExtractionStream(image: string, abortSignal?: AbortSign
   const { textStream } = streamText({
     model: openai.chat(getModel(settings)),
     system:
-      '分析这张截图，可能是阅读材料（文字）或图片；若主要是文字/阅读材料，忠实转写或提取关键内容，不评论、不解答；若包含图片，客观详细地描述图片内容；输出一段简洁文字作为后续口语问答的上下文依据；用英语输出（英语考试场景），必要时可夹杂简短中文说明。',
+      '分析这张截图并判断类型，只输出一个 JSON 对象、不要输出任何其他内容。若主要是文字/阅读材料，输出 {"kind":"reading","text":"忠实转写或提取的关键内容"}；若是图表/图片/场景，输出 {"kind":"image","text":"客观详细的中文或英文描述"}。text 字段内部请避免使用双引号。用英语回答，必要时可夹杂简短中文说明。',
     messages: [
       {
         role: 'user',
@@ -109,10 +109,16 @@ export function getVisualExtractionStream(image: string, abortSignal?: AbortSign
   return textStream
 }
 
+export interface VoiceTurn {
+  question: string
+  answer: string
+}
+
 export function getVoiceAnswerStream(
   question: string,
   visualContext: string | undefined,
   writingContext: string | undefined,
+  history: VoiceTurn[],
   abortSignal?: AbortSignal
 ) {
   const provider = resolveVoiceProvider()
@@ -121,6 +127,11 @@ export function getVoiceAnswerStream(
     apiKey: provider.apiKey
   })
 
+  const historySection = history.length
+    ? '以下历史对话仅供理解上下文（不要复述，直接回答当前问题）：\n' +
+      history.map((turn) => '考官：' + turn.question + '\n考生：' + turn.answer).join('\n') +
+      '\n\n'
+    : ''
   const visualSection = visualContext ? `\n\n截图上下文：\n${visualContext}` : ''
   const writingSection = writingContext
     ? `\n\n用户在写作部分写了以下内容（考官可能就此提问）：\n${writingContext}`
@@ -134,7 +145,12 @@ export function getVoiceAnswerStream(
     messages: [
       {
         role: 'user',
-        content: [{ type: 'text', text: `考官提问：${question}${visualSection}${writingSection}` }]
+        content: [
+          {
+            type: 'text',
+            text: `${historySection}考官提问：${question}${visualSection}${writingSection}`
+          }
+        ]
       }
     ],
     abortSignal,

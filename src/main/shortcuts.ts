@@ -92,7 +92,13 @@ let hasAppendSeparator = false
 let isCapturingScreenshot = false
 let screenshotCaptureGeneration = 0
 let pendingVoiceQuestion: string | null = null
-let visualContextText: string | null = null
+interface VisualContext {
+  kind: 'reading' | 'image'
+  text: string
+}
+
+let visualContext: VisualContext | null = null
+let voiceHistory: { question: string; answer: string }[] = []
 
 // Auto voice mode for ELLT speaking
 let autoVoiceMode = false
@@ -249,6 +255,48 @@ function abortCurrentStream(reason: AbortReason) {
   currentStreamContext.controller.abort()
 }
 
+function parseVisualContext(raw: string): VisualContext {
+  let cleaned = raw.trim()
+  if (cleaned.startsWith('```')) {
+    const firstNewline = cleaned.indexOf('\n')
+    cleaned = firstNewline >= 0 ? cleaned.slice(firstNewline + 1) : ''
+  }
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.slice(0, cleaned.lastIndexOf('```')).trim()
+  }
+  try {
+    const parsed = JSON.parse(cleaned)
+    if (parsed && typeof parsed.text === 'string') {
+      return {
+        kind: parsed.kind === 'reading' ? 'reading' : 'image',
+        text: parsed.text
+      }
+    }
+  } catch {
+    // fall through to heuristic
+  }
+  const kind = /chart|diagram|picture|image|bar|graph/i.test(cleaned) ? 'image' : 'reading'
+  return { kind, text: cleaned }
+}
+
+function checkWritingQuestion(question: string): boolean {
+  const q = question.toLowerCase()
+  const keywords = [
+    'essay',
+    'writing',
+    'article',
+    'do you agree',
+    'agree or disagree',
+    'opinion',
+    'argument',
+    'your view',
+    'main idea',
+    'what did you write',
+    'conclusion',
+    'reason'
+  ]
+  return keywords.some((keyword) => q.includes(keyword))
+}
 async function extractVisualContext(screenshotData: string) {
   const mainWindow = global.mainWindow
   if (!mainWindow || mainWindow.isDestroyed()) return
@@ -267,6 +315,7 @@ async function extractVisualContext(screenshotData: string) {
   try {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       if (streamContext.controller.signal.aborted) break
+      accumulated = ''
       try {
         const extractionStream = getVisualExtractionStream(
           screenshotData,
@@ -275,7 +324,6 @@ async function extractVisualContext(screenshotData: string) {
         for await (const chunk of extractionStream) {
           if (streamContext.controller.signal.aborted) break
           accumulated += chunk
-          mainWindow.webContents.send('solution-chunk', chunk)
         }
         if (streamContext.controller.signal.aborted) break
         succeeded = true
@@ -298,7 +346,9 @@ async function extractVisualContext(screenshotData: string) {
         mainWindow.webContents.send('solution-stopped')
       }
     } else if (succeeded && ownsStream) {
-      visualContextText = accumulated
+      visualContext = parseVisualContext(accumulated)
+      mainWindow.webContents.send('solution-clear')
+      mainWindow.webContents.send('solution-chunk', visualContext.text)
       mainWindow.webContents.send('solution-complete')
     }
   } finally {
@@ -446,6 +496,8 @@ const callbacks: Record<string, () => void> = {
       if (autoVoiceMode) {
         recentScreenshots = [screenshotData]
         hasAppendSeparator = false
+        visualContext = null
+        voiceHistory = []
         mainWindow.webContents.send('solution-clear')
         mainWindow.webContents.send('screenshots-updated', recentScreenshots)
         mainWindow.webContents.send('screenshot-taken', screenshotData)
@@ -791,16 +843,27 @@ const callbacks: Record<string, () => void> = {
 
     let receivedContent = false
     try {
+      const visualContextForAnswer = visualContext?.text
+      const writingContextForAnswer =
+        !visualContext && checkWritingQuestion(question) && settings.writingContent
+          ? settings.writingContent
+          : undefined
+
+      let answer = ''
       const voiceStream = getVoiceAnswerStream(
         question,
-        visualContextText ?? undefined,
-        settings.writingContent,
+        visualContextForAnswer,
+        writingContextForAnswer,
+        voiceHistory,
         streamContext.controller.signal
       )
 
       for await (const chunk of voiceStream) {
         if (streamContext.controller.signal.aborted) break
-        if (chunk) receivedContent = true
+        if (chunk) {
+          receivedContent = true
+          answer += chunk
+        }
         mainWindow.webContents.send('solution-chunk', chunk)
       }
 
@@ -812,6 +875,7 @@ const callbacks: Record<string, () => void> = {
       } else if (ownsStream) {
         if (receivedContent) {
           pendingVoiceQuestion = null
+          voiceHistory = [...voiceHistory, { question, answer }].slice(-4)
           mainWindow.webContents.send('solution-complete')
         } else {
           mainWindow.webContents.send('solution-error', '模型未返回内容，请按 V 重试')
@@ -847,7 +911,8 @@ const callbacks: Record<string, () => void> = {
     recentScreenshots = []
     hasAppendSeparator = false
     pendingVoiceQuestion = null
-    visualContextText = null
+    visualContext = null
+    voiceHistory = []
     clearTranscriptionText()
     mainWindow.webContents.send('transcription-cleared')
     mainWindow.webContents.send('solution-clear')
@@ -904,7 +969,8 @@ function endVoiceSession() {
   conversationMessages = []
   recentScreenshots = []
   hasAppendSeparator = false
-  visualContextText = null
+  visualContext = null
+  voiceHistory = []
   clearTranscriptionText()
 
   const mainWindow = global.mainWindow
