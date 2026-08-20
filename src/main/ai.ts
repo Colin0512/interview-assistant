@@ -144,7 +144,7 @@ export function getVoiceAnswerStream(
 
   const { textStream } = streamText({
     model: openai.chat(provider.model),
-    system: getSystemPrompt('回答必须简短（3-5句），口语化，可直接念出。用英语回答。'),
+    system: getSystemPrompt('回答必须简短（3-5句），口语化，可直接念出。用英语回答。直接输出回答内容本身，不要任何开场白或前缀。'),
     messages: [
       {
         role: 'user',
