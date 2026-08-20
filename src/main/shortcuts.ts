@@ -257,12 +257,11 @@ function abortCurrentStream(reason: AbortReason) {
 
 function parseVisualContext(raw: string): VisualContext {
   let cleaned = raw.trim()
-  if (cleaned.startsWith('```')) {
-    const firstNewline = cleaned.indexOf('\n')
-    cleaned = firstNewline >= 0 ? cleaned.slice(firstNewline + 1) : ''
-  }
-  if (cleaned.endsWith('```')) {
-    cleaned = cleaned.slice(0, cleaned.lastIndexOf('```')).trim()
+  // 提取第一个 { 到最后一个 } 之间的 JSON 子串，容忍前言/围栏
+  const firstBrace = cleaned.indexOf('{')
+  const lastBrace = cleaned.lastIndexOf('}')
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1)
   }
   try {
     const parsed = JSON.parse(cleaned)
@@ -287,13 +286,7 @@ function checkWritingQuestion(question: string): boolean {
     'article',
     'do you agree',
     'agree or disagree',
-    'opinion',
-    'argument',
-    'your view',
-    'main idea',
-    'what did you write',
-    'conclusion',
-    'reason'
+    'what did you write'
   ]
   return keywords.some((keyword) => q.includes(keyword))
 }
@@ -843,12 +836,17 @@ const callbacks: Record<string, () => void> = {
 
     let receivedContent = false
     try {
+      const isWritingQuestion = checkWritingQuestion(question) && Boolean(settings.writingContent)
+      // 作文题优先于旧视觉上下文（Stage 2 → 3 自动切换）
+      if (isWritingQuestion && visualContext) {
+        visualContext = null
+        voiceHistory = []
+      }
+      const useVisual = visualContext != null
       const visualContextForAnswer = visualContext?.text
-      const isWriting = !visualContext && checkWritingQuestion(question)
-      const writingContextForAnswer =
-        isWriting && settings.writingContent ? settings.writingContent : undefined
+      const writingContextForAnswer = isWritingQuestion ? settings.writingContent : undefined
       const personalContextForAnswer =
-        !visualContext && !isWriting ? settings.personalInfo || undefined : undefined
+        !useVisual && !isWritingQuestion ? settings.personalInfo || undefined : undefined
 
       let answer = ''
       const voiceStream = getVoiceAnswerStream(

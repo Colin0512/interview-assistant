@@ -87,12 +87,14 @@ function startTranscription(apiKey: string) {
         const text: string = sentence.text || ''
         const sentenceEnd: boolean = sentence.sentence_end === true
 
+        // 任何 result-generated（含 partial）都刷新最后活动时间，避免长句中间停顿被误判为说完
+        lastSentenceTime = Date.now()
+
         if (sentenceEnd) {
           if (text) {
-            accumulatedText += (accumulatedText ? '' : '') + text
+            accumulatedText += text
           }
           currentPartial = ''
-          lastSentenceTime = Date.now()
         } else {
           currentPartial = text
         }

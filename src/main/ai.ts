@@ -139,14 +139,12 @@ export function getVoiceAnswerStream(
     : ''
   const visualSection = visualContext ? `\n\n截图上下文：\n${visualContext}` : ''
   const writingSection = writingContext
-    ? `\n\n用户在写作部分写了以下内容（考官可能就此提问）：\n${writingContext}`
+    ? `\n\n你在写作部分写了以下内容（考官可能就此提问）：\n${writingContext}`
     : ''
 
   const { textStream } = streamText({
     model: openai.chat(provider.model),
-    system: getSystemPrompt(
-      '你正在辅助一场口语考试。回答必须简短（3-5句），口语化，可直接念出。用英语回答（这是英语考试）。'
-    ),
+    system: getSystemPrompt('回答必须简短（3-5句），口语化，可直接念出。用英语回答。'),
     messages: [
       {
         role: 'user',

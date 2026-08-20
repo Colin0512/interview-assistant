@@ -11,6 +11,7 @@ export function AppContent() {
     screenshotData,
     solutionChunks,
     errorMessage,
+    isLoading,
     setScreenshotData,
     setIsLoading,
     addSolutionChunk,
@@ -171,9 +172,9 @@ export function AppContent() {
             className="w-40 h-auto border border-gray-600 rounded-lg shadow-lg"
           />
         </div>
-      ) : (
+      ) : solutionChunks.length === 0 && !isLoading ? (
         <ShortcutTip />
-      )}
+      ) : null}
 
       {/* Solution Display */}
       <MarkdownRenderer>{solutionChunks.join('')}</MarkdownRenderer>

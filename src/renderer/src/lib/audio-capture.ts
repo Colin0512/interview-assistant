@@ -65,6 +65,10 @@ export async function startAudioCapture(): Promise<boolean> {
     }
   }
 
+  if (generation !== captureGeneration) {
+    return false
+  }
+
   const source = audioContext.createMediaStreamSource(new MediaStream(stream.getAudioTracks()))
 
   processor = audioContext.createScriptProcessor(2048, 1, 1)
@@ -72,7 +76,11 @@ export async function startAudioCapture(): Promise<boolean> {
     downsampleAndSend(e.inputBuffer.getChannelData(0))
   }
   source.connect(processor)
-  processor.connect(audioContext.destination)
+  // 挂到静音节点保活，避免把采集音频导回扬声器造成回声/自激
+  const muteGain = audioContext.createGain()
+  muteGain.gain.value = 0
+  processor.connect(muteGain)
+  muteGain.connect(audioContext.destination)
   return true
 }
 
