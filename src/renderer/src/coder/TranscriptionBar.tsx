@@ -11,7 +11,7 @@ export function TranscriptionBar() {
     if (el) el.scrollTop = el.scrollHeight
   }, [transcriptionText])
 
-  if (!isTranscribing && !transcriptionText) return null
+  if (!transcriptionText) return null
 
   return (
     <div className="absolute top-10 left-0 right-0 px-6 pb-2 z-10">
@@ -23,7 +23,7 @@ export function TranscriptionBar() {
           ref={scrollRef}
           className="transcription-scroll text-sm text-gray-300 max-h-[4.2em] overflow-y-auto leading-[1.4em] flex-1 whitespace-pre-wrap break-words"
         >
-          {transcriptionText || (isTranscribing ? '等待语音输入...' : '')}
+          {transcriptionText}
         </div>
       </div>
     </div>
