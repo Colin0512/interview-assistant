@@ -1,6 +1,7 @@
 import { streamText, type ModelMessage } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
-import { settings, AppSettings } from './settings'
+import { getActiveStages, settings, type AppSettings, type StageDef } from './settings'
+import { getStage4VisionPrompt } from './ellt/stage4-vision'
 
 // The system prompt is fully managed by the renderer (prompt scenes in the
 // settings store) and synced here via updateAppSettings on app startup
@@ -69,6 +70,11 @@ export function getFollowUpStream(
   return textStream
 }
 
+function getStageRule(stage: StageDef | undefined): string {
+  if (stage?.customPrompt?.trim()) return stage.customPrompt
+  return 'Output only the spoken English answer. Use natural language and short sentences. Answer directly, then develop the idea with a reason, example, comparison or consequence. Follow the suggested length flexibly and never add filler.'
+}
+
 function resolveVoiceProvider() {
   const useDedicatedProvider = Boolean(settings.voiceApiBaseURL && settings.voiceApiKey)
   return {
@@ -82,21 +88,32 @@ export function hasVoiceProviderCredentials(): boolean {
   return Boolean(resolveVoiceProvider().apiKey)
 }
 
-export function getVisualExtractionStream(image: string, abortSignal?: AbortSignal) {
+export function getVisualExtractionStream(
+  image: string,
+  stageIndex: number,
+  abortSignal?: AbortSignal
+) {
   const openai = createOpenAI({
     baseURL: settings.apiBaseURL,
     apiKey: settings.apiKey
   })
 
+  const stage4Prompt = stageIndex === 3 ? getStage4VisionPrompt() : null
   const { textStream } = streamText({
     model: openai.chat(getModel(settings)),
     system:
-      '分析这张截图并判断类型，只输出一个 JSON 对象、不要输出任何其他内容。若主要是文字/阅读材料，输出 {"kind":"reading","text":"忠实转写或提取的关键内容"}；若是图表/图片/场景，输出 {"kind":"image","text":"客观详细的中文或英文描述"}。text 字段内部请避免使用双引号。用英语回答，必要时可夹杂简短中文说明。',
+      stage4Prompt?.system ||
+      '这是在线英语口语考试的完整屏幕截图。只定位并提取考官展示给考生阅读的主要材料，忽略考官/考生视频小窗、头像、平台 logo、标题栏、按钮、状态栏和其他界面元素。只输出一个 JSON 对象，不要输出其他内容：{"kind":"reading","text":"忠实提取主要阅读材料的标题、正文、关键观点和例子"}。text 内避免双引号，使用英语。',
     messages: [
       {
         role: 'user',
         content: [
-          { type: 'text', text: '这是屏幕截图，请按上述要求识别并输出上下文。' },
+          {
+            type: 'text',
+            text:
+              stage4Prompt?.user ||
+              'Locate and extract only the main reading material being shared in this full exam screenshot.'
+          },
           { type: 'image', image }
         ]
       }
@@ -114,10 +131,77 @@ export interface VoiceTurn {
   answer: string
 }
 
+interface ReferenceProfile {
+  majorParts?: {
+    index: number
+    label: string
+    mainIdea: string
+    structureIndexes: number[]
+    expansionPaths: string[]
+  }[]
+  structure?: {
+    index: number
+    label: string
+    sourceSummary: string
+    purpose: string
+    mainClaim: string
+    examples: string[]
+    expansionPaths: string[]
+  }[]
+  originalExamples?: string[]
+}
+
+function getOrdinalIndex(question: string): number | 'last' | null {
+  const q = question.toLowerCase()
+  if (/\b(final|last)\b/.test(q)) return 'last'
+  const ordinals = [
+    /\b(first|1st|one)\b/,
+    /\b(second|2nd|two)\b/,
+    /\b(third|3rd|three)\b/,
+    /\b(fourth|4th|four)\b/,
+    /\b(fifth|5th|five)\b/
+  ]
+  const index = ordinals.findIndex((pattern) => pattern.test(q))
+  return index >= 0 ? index : null
+}
+
+function resolveWritingReference(question: string, writingProfile?: string): string {
+  if (!writingProfile) return ''
+  const q = question.toLowerCase()
+  if (!/\b(part|point|paragraph|example|sentence)\b/.test(q)) return ''
+  const ordinal = getOrdinalIndex(q)
+  if (ordinal === null) return ''
+  try {
+    const profile = JSON.parse(writingProfile) as ReferenceProfile
+    const select = <T>(items: T[] | undefined): T | undefined => {
+      if (!items?.length) return undefined
+      return ordinal === 'last' ? items.at(-1) : items[ordinal]
+    }
+    if (/\bpart\b/.test(q)) {
+      const part = select(profile.majorParts)
+      if (!part) return ''
+      const details = (profile.structure || []).filter((item) =>
+        part.structureIndexes.includes(item.index)
+      )
+      return JSON.stringify({ referenceType: 'major part', target: part, details })
+    }
+    if (/\bexample\b/.test(q)) {
+      const example = select(profile.originalExamples)
+      return example ? JSON.stringify({ referenceType: 'example', target: example }) : ''
+    }
+    const point = select(profile.structure)
+    return point ? JSON.stringify({ referenceType: 'detailed point', target: point }) : ''
+  } catch {
+    return ''
+  }
+}
+
 export function getVoiceAnswerStream(
   question: string,
+  stageIndex: number,
   visualContext: string | undefined,
   writingContext: string | undefined,
+  writingProfile: string | undefined,
   personalContext: string | undefined,
   history: VoiceTurn[],
   abortSignal?: AbortSignal
@@ -139,19 +223,27 @@ export function getVoiceAnswerStream(
     : ''
   const visualSection = visualContext ? `\n\n截图上下文：\n${visualContext}` : ''
   const writingSection = writingContext
-    ? `\n\n你在写作部分写了以下内容（考官可能就此提问）：\n${writingContext}`
+    ? `\n\nOriginal essay written by the candidate:\n${writingContext}`
     : ''
+  const resolvedWritingReference = resolveWritingReference(question, writingProfile)
+  const resolvedWritingReferenceSection = resolvedWritingReference
+    ? `\n\nAUTHORITATIVE RESOLVED TARGET FOR THIS QUESTION:\n${resolvedWritingReference}\nAnswer only this target.`
+    : ''
+  const writingProfileSection = writingProfile
+    ? `\n\nPreprocessed Writing Profile. It separates original material from valid extensions:\n${writingProfile}`
+    : ''
+  const stage = getActiveStages()[stageIndex]
 
   const { textStream } = streamText({
     model: openai.chat(provider.model),
-    system: getSystemPrompt('回答必须简短（3-5句），口语化，可直接念出。用英语回答。直接输出回答内容本身，不要任何开场白或前缀。'),
+    system: getSystemPrompt(getStageRule(stage)),
     messages: [
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: `${historySection}考官提问：${question}${personalSection}${visualSection}${writingSection}`
+            text: `${historySection}考官提问：${question}${resolvedWritingReferenceSection}${personalSection}${visualSection}${writingSection}${writingProfileSection}`
           }
         ]
       }

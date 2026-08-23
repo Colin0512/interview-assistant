@@ -1,4 +1,28 @@
 import { app, dialog, ipcMain } from 'electron'
+import { DEFAULT_WRITING_CONTENT } from './ellt/default-writing-content'
+
+export type ContextMode = 'off' | 'primary' | 'fallback'
+
+export interface StageContextConfig {
+  personalInfo: ContextMode
+  writingContent: ContextMode
+  visualContext: ContextMode
+}
+
+export interface StageDef {
+  id: string
+  name: string
+  color: string
+  contextConfig: StageContextConfig
+  customPrompt: string
+}
+
+export interface StagePreset {
+  id: string
+  name: string
+  stages: StageDef[]
+  isPreset: boolean
+}
 
 ipcMain.handle('getAppSettings', () => {
   return settings
@@ -8,6 +32,11 @@ ipcMain.handle('updateAppSettings', (_event, _settings) => {
   Object.assign(settings, _settings)
   if ('hideDockIcon' in _settings) {
     applyDockVisibility(settings.hideDockIcon)
+  }
+  if ('writingContent' in _settings && settings.writingContent.trim()) {
+    void import('./ellt/writing-profile')
+      .then(({ getWritingProfile }) => getWritingProfile(settings.writingContent))
+      .catch((error) => console.error('Failed to prewarm writing profile:', error))
   }
 })
 
@@ -46,8 +75,15 @@ export const settings = {
   hideDockIcon: false,
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
-  writingContent: '',
-  personalInfo: process.env.PERSONAL_INFO || ''
+  writingContent: DEFAULT_WRITING_CONTENT,
+  personalInfo: process.env.PERSONAL_INFO || '',
+  stagePresets: [] as StagePreset[],
+  activeStagePresetId: ''
+}
+
+export function getActiveStages(): StageDef[] {
+  const preset = settings.stagePresets?.find((item) => item.id === settings.activeStagePresetId)
+  return preset?.stages ?? []
 }
 
 export type AppSettings = typeof settings

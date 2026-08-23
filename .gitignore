@@ -5,3 +5,14 @@ dist
 .eslintcache
 *.log*
 .env*
+!.env.example
+
+# Local user data and generated caches
+writing-profile.json
+screenshots/
+*.tsbuildinfo
+
+# Local test and analysis fixtures
+tmp-*
+.asar-check/
+runtime-logs/

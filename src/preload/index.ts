@@ -181,7 +181,17 @@ const api = {
   stopAutoVoiceMode: () => ipcRenderer.invoke('stop-auto-voice-mode'),
   endVoiceSession: () => ipcRenderer.invoke('end-voice-session'),
   clearPendingVoiceQuestion: () => ipcRenderer.invoke('clear-pending-voice-question'),
-  voiceTrigger: () => ipcRenderer.invoke('voice-trigger')
+  voiceTrigger: () => ipcRenderer.invoke('voice-trigger'),
+
+  // Stage change
+  onStageChanged: (callback: (data: { stageIndex: number; stages: unknown[] }) => void) => {
+    ipcRenderer.on('stage-changed', (_event, data) => {
+      callback(data)
+    })
+  },
+  removeStageChangedListener: () => {
+    ipcRenderer.removeAllListeners('stage-changed')
+  }
 }
 
 export type MainAPI = typeof api

@@ -15,6 +15,11 @@ import {
   User,
   Plus,
   RotateCcw,
+  Pencil,
+  Trash2,
+  ListTree,
+  ChevronUp,
+  ChevronDown,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -31,7 +36,12 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { useSettingsStore, PRESET_SCENE_PROMPTS } from '@/lib/store/settings'
+import {
+  useSettingsStore,
+  PRESET_SCENE_PROMPTS,
+  DEFAULT_STAGE_PRESET_ID,
+  type ContextMode
+} from '@/lib/store/settings'
 import { isMac } from '@/lib/utils/env'
 import { SelectModel } from './SelectModel'
 import { CustomShortcuts, ResetDefaultShortcuts } from './CustomShortcuts'
@@ -62,11 +72,21 @@ export default function SettingsPage() {
     writingContent,
     personalInfo,
     hideDockIcon,
+    stagePresets,
+    activeStagePresetId,
     updateSetting,
     setActiveScene,
     updateScenePrompt,
     addScene,
-    removeScene
+    removeScene,
+    addStagePreset,
+    removeStagePreset,
+    updateStagePreset,
+    setActiveStagePreset,
+    addStage,
+    removeStage,
+    updateStage,
+    reorderStages
   } = useSettingsStore()
   const [showApiKey, setShowApiKey] = useState(false)
   const [showVoiceApiKey, setShowVoiceApiKey] = useState(false)
@@ -74,11 +94,14 @@ export default function SettingsPage() {
   const [addSceneOpen, setAddSceneOpen] = useState(false)
   const [newSceneName, setNewSceneName] = useState('')
   const [sceneToDelete, setSceneToDelete] = useState<string | null>(null)
+  const [editingStageId, setEditingStageId] = useState<string | null>(null)
 
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
 
   const activeScene = scenes.find((s) => s.id === activeSceneId)
   const deletingScene = scenes.find((s) => s.id === sceneToDelete)
+  const activeStagePreset = stagePresets.find((preset) => preset.id === activeStagePresetId)
+  const editingStage = activeStagePreset?.stages.find((stage) => stage.id === editingStageId)
 
   useEffect(() => {
     return () => {
@@ -247,6 +270,239 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Stage preset settings */}
+        <div className="bg-gray-300/80 rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center">
+            <ListTree className="h-5 w-5 mr-2" />
+            阶段预设
+          </h2>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Select value={activeStagePresetId} onValueChange={setActiveStagePreset}>
+                <SelectTrigger className="flex-1 bg-white">
+                  <SelectValue placeholder="选择阶段预设" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stagePresets.map((preset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                onClick={() => addStagePreset(`新预设 ${stagePresets.length + 1}`)}
+              >
+                <Plus className="h-4 w-4" />
+                新增预设
+              </Button>
+              {activeStagePreset && activeStagePreset.id !== DEFAULT_STAGE_PRESET_ID && (
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  title="删除当前预设"
+                  onClick={() => removeStagePreset(activeStagePreset.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {activeStagePreset && (
+              <>
+                <Input
+                  value={activeStagePreset.name}
+                  aria-label="预设名称"
+                  className="bg-white"
+                  onChange={(event) =>
+                    updateStagePreset(activeStagePreset.id, { name: event.target.value })
+                  }
+                />
+                <div className="space-y-2">
+                  {activeStagePreset.stages.map((stage, index) => (
+                    <div
+                      key={stage.id}
+                      className="flex items-center gap-3 rounded-md border border-gray-300 bg-white px-3 py-2"
+                    >
+                      <span
+                        className={cn(
+                          'h-3 w-3 rounded-full',
+                          {
+                            blue: 'bg-blue-600',
+                            green: 'bg-green-600',
+                            orange: 'bg-orange-600',
+                            purple: 'bg-purple-600',
+                            red: 'bg-red-600',
+                            teal: 'bg-teal-600'
+                          }[stage.color] ?? 'bg-gray-600'
+                        )}
+                      />
+                      <span className="flex-1 text-sm">
+                        Stage {index + 1} · {stage.name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={index === 0}
+                        title="上移"
+                        onClick={() => reorderStages(activeStagePreset.id, index, index - 1)}
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={index === activeStagePreset.stages.length - 1}
+                        title="下移"
+                        onClick={() => reorderStages(activeStagePreset.id, index, index + 1)}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="编辑阶段"
+                        onClick={() => setEditingStageId(stage.id)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="删除阶段"
+                        onClick={() => removeStage(activeStagePreset.id, stage.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {activeStagePreset.stages.length === 0 && (
+                    <p className="text-sm text-gray-600">当前预设没有阶段，请先添加一个阶段。</p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const id = addStage(activeStagePreset.id)
+                    setEditingStageId(id)
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  添加阶段
+                </Button>
+                <p className="text-xs text-gray-600">
+                  在主界面按 <kbd className="rounded border bg-white px-1">,</kbd>{' '}
+                  切换到上一阶段，按 <kbd className="rounded border bg-white px-1">.</kbd>{' '}
+                  切换到下一阶段；到达首尾时会停留在当前阶段。
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <Dialog open={!!editingStage} onOpenChange={(open) => !open && setEditingStageId(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>编辑阶段</DialogTitle>
+              <DialogDescription>设置阶段名称、标识颜色及回答时使用的上下文。</DialogDescription>
+            </DialogHeader>
+            {activeStagePreset && editingStage && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">名称</label>
+                  <Input
+                    className="mt-1"
+                    value={editingStage.name}
+                    onChange={(event) =>
+                      updateStage(activeStagePreset.id, editingStage.id, {
+                        name: event.target.value
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">颜色</label>
+                  <Select
+                    value={editingStage.color}
+                    onValueChange={(color) =>
+                      updateStage(activeStagePreset.id, editingStage.id, { color })
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[
+                        ['blue', '蓝色'],
+                        ['green', '绿色'],
+                        ['orange', '橙色'],
+                        ['purple', '紫色'],
+                        ['red', '红色'],
+                        ['teal', '青色']
+                      ].map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">上下文模式</label>
+                  {(
+                    [
+                      ['personalInfo', '个人资料'],
+                      ['writingContent', '写作内容'],
+                      ['visualContext', '视觉上下文']
+                    ] as const
+                  ).map(([key, label]) => (
+                    <div key={key} className="flex items-center justify-between">
+                      <span className="text-sm">{label}</span>
+                      <Select
+                        value={editingStage.contextConfig[key]}
+                        onValueChange={(mode) =>
+                          updateStage(activeStagePreset.id, editingStage.id, {
+                            contextConfig: {
+                              ...editingStage.contextConfig,
+                              [key]: mode as ContextMode
+                            }
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="off">关闭</SelectItem>
+                          <SelectItem value="primary">主要</SelectItem>
+                          <SelectItem value="fallback">备用</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <label className="text-sm font-medium">自定义提示词</label>
+                  <Textarea
+                    className="mt-1 min-h-28"
+                    value={editingStage.customPrompt}
+                    placeholder="可选：为此阶段补充专用指令"
+                    onChange={(event) =>
+                      updateStage(activeStagePreset.id, editingStage.id, {
+                        customPrompt: event.target.value
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button onClick={() => setEditingStageId(null)}>完成</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Personal Info Settings */}
         <div className="bg-gray-300/80 rounded-lg p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center">
@@ -265,7 +521,7 @@ export default function SettingsPage() {
               <Textarea
                 value={personalInfo}
                 onChange={(e) => updateSetting('personalInfo', e.target.value)}
-                placeholder="例如：My name is Li Ming. I am from Changsha. I study computer science at Hunan University. I like playing basketball and reading."
+                placeholder="例如：My name is Li Ming. I am from Beijing. I study computer science at Peking University. I like playing basketball and reading."
                 className="w-full min-h-24 max-h-60 bg-white mt-2"
                 rows={5}
               />

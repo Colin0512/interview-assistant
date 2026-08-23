@@ -5,6 +5,7 @@ interface SolutionState {
   solutionChunks: string[]
   screenshotData: string | null
   errorMessage: string | null
+  currentStage: number
 }
 
 interface SolutionStore extends SolutionState {
@@ -13,6 +14,7 @@ interface SolutionStore extends SolutionState {
   setSolutionChunks: (chunks: string[]) => void
   setScreenshotData: (data: string | null) => void
   setErrorMessage: (message: string | null) => void
+  setCurrentStage: (stage: number) => void
   clearSolution: () => void
   resetState: () => void
 }
@@ -21,7 +23,8 @@ const defaultState: SolutionState = {
   isLoading: false,
   solutionChunks: [],
   screenshotData: null,
-  errorMessage: null
+  errorMessage: null,
+  currentStage: 0
 }
 
 export const useSolutionStore = create<SolutionStore>()((set) => ({
@@ -42,6 +45,9 @@ export const useSolutionStore = create<SolutionStore>()((set) => ({
   },
   setErrorMessage: (message) => {
     set({ errorMessage: message })
+  },
+  setCurrentStage: (stage) => {
+    set({ currentStage: stage })
   },
   clearSolution: () => {
     set({ solutionChunks: [], isLoading: false, errorMessage: null })

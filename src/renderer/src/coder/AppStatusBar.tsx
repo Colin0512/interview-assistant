@@ -3,19 +3,34 @@ import { Pointer, PointerOff, OctagonX, MessageCircle } from 'lucide-react'
 import { useSolutionStore } from '@/lib/store/solution'
 import { useShortcutsStore } from '@/lib/store/shortcuts'
 import { useAppStore } from '@/lib/store/app'
+import { useSettingsStore } from '@/lib/store/settings'
 import ShortcutRenderer from '@/components/ShortcutRenderer'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+
+const STAGE_COLOR_CLASSES: Record<string, string> = {
+  blue: 'bg-blue-600',
+  green: 'bg-green-600',
+  orange: 'bg-orange-600',
+  purple: 'bg-purple-600',
+  red: 'bg-red-600',
+  teal: 'bg-teal-600'
+}
 
 export function AppStatusBar() {
   const {
     isLoading: isReceivingSolution,
     setIsLoading,
     screenshotData,
-    solutionChunks
+    solutionChunks,
+    currentStage
   } = useSolutionStore()
   const { ignoreMouse } = useAppStore()
+  const { stagePresets, activeStagePresetId } = useSettingsStore()
+  const activeStage = stagePresets.find((preset) => preset.id === activeStagePresetId)?.stages[
+    currentStage
+  ]
   const { shortcuts } = useShortcutsStore()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [questionInput, setQuestionInput] = useState('')
@@ -95,6 +110,13 @@ export function AppStatusBar() {
         ) : null}
       </div>
       <div className="flex items-center space-x-4 select-none">
+        {activeStage && (
+          <span
+            className={`${STAGE_COLOR_CLASSES[activeStage.color] ?? 'bg-gray-600'} rounded-md px-2 py-0.5 text-[10px] font-semibold text-white`}
+          >
+            Stage {currentStage + 1} · {activeStage.name}
+          </span>
+        )}
         {/* Follow-up Question Button */}
         {hasActiveConversation && !isReceivingSolution && (
           <Button

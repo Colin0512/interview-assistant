@@ -14,6 +14,12 @@ let lastSentenceTime = 0
 // When true (auto voice mode), termination handlers keep accumulated text so the
 // auto voice timer can still consume it via lastSentenceTime instead of dropping it.
 let preserveTextOnTermination = false
+let transcriptionRequested = false
+let transcriptionApiKey = ''
+let reconnectTimer: NodeJS.Timeout | null = null
+let reconnectScheduled = false
+let reconnectAttempts = 0
+const MAX_RECONNECT_ATTEMPTS = 5
 
 function sendToRenderer(channel: string, ...args: unknown[]) {
   const mainWindow = global.mainWindow
@@ -22,7 +28,7 @@ function sendToRenderer(channel: string, ...args: unknown[]) {
   }
 }
 
-function cleanup() {
+function cleanupSocket() {
   if (ws) {
     ws.removeAllListeners()
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
@@ -31,16 +37,44 @@ function cleanup() {
     ws = null
   }
   taskId = null
-  isTranscribing = false
   taskStarted = false
 }
 
-function startTranscription(apiKey: string) {
-  if (isTranscribing) return
+function stopReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  reconnectScheduled = false
+}
 
-  cleanup()
-  clearTranscriptionText()
-  sendToRenderer('transcription-cleared')
+function scheduleReconnect(reason: string) {
+  if (!transcriptionRequested || !transcriptionApiKey || reconnectScheduled) return
+  cleanupSocket()
+  stopReconnectTimer()
+  reconnectScheduled = true
+  reconnectAttempts++
+  if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+    console.error('Transcription reconnect limit reached:', reason)
+    transcriptionRequested = false
+    isTranscribing = false
+    sendToRenderer('transcription-error', '语音识别连接已中断，请重新开启转录')
+    sendToRenderer('transcription-stopped')
+    return
+  }
+  const delay = Math.min(250 * 2 ** (reconnectAttempts - 1), 4000)
+  console.warn(
+    `Transcription session ended (${reason}); reconnecting in ${delay}ms (attempt ${reconnectAttempts})`
+  )
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    reconnectScheduled = false
+    if (transcriptionRequested) connectTranscription(transcriptionApiKey)
+  }, delay)
+}
+
+function connectTranscription(apiKey: string) {
+  cleanupSocket()
   isTranscribing = true
   taskId = randomUUID()
 
@@ -77,6 +111,8 @@ function startTranscription(apiKey: string) {
 
       if (event === 'task-started') {
         taskStarted = true
+        reconnectAttempts = 0
+        console.log('Transcription task started:', taskId)
         return
       }
 
@@ -109,17 +145,12 @@ function startTranscription(apiKey: string) {
       if (event === 'task-failed') {
         const errorMsg = msg.header?.error_message || '语音识别失败'
         console.error('Transcription task failed:', errorMsg)
-        sendToRenderer('transcription-error', errorMsg)
-        cleanup()
-        clearTranscriptionOnTermination()
-        sendToRenderer('transcription-stopped')
+        scheduleReconnect('task-failed: ' + errorMsg)
         return
       }
 
       if (event === 'task-finished') {
-        cleanup()
-        clearTranscriptionOnTermination()
-        sendToRenderer('transcription-stopped')
+        scheduleReconnect('task-finished')
       }
     } catch (e) {
       console.error('Failed to parse transcription message:', e)
@@ -128,25 +159,31 @@ function startTranscription(apiKey: string) {
 
   ws.on('error', (err) => {
     console.error('Transcription WebSocket error:', err)
-    sendToRenderer('transcription-error', err.message || 'WebSocket 连接失败')
-    cleanup()
-    clearTranscriptionOnTermination()
-    sendToRenderer('transcription-stopped')
+    scheduleReconnect(err.message || 'websocket-error')
   })
 
-  ws.on('close', () => {
-    if (isTranscribing) {
-      isTranscribing = false
-      clearTranscriptionOnTermination()
-      sendToRenderer('transcription-stopped')
+  ws.on('close', (code, reason) => {
+    if (transcriptionRequested) {
+      scheduleReconnect(`websocket-close ${code} ${reason.toString()}`.trim())
+    } else {
+      cleanupSocket()
     }
-    ws = null
-    taskStarted = false
   })
 }
 
+function startTranscription(apiKey: string) {
+  if (transcriptionRequested) return
+  transcriptionRequested = true
+  transcriptionApiKey = apiKey
+  reconnectAttempts = 0
+  stopReconnectTimer()
+  clearTranscriptionText()
+  sendToRenderer('transcription-cleared')
+  connectTranscription(apiKey)
+}
+
 function stopTranscription() {
-  if (!isTranscribing) return
+  if (!transcriptionRequested && !isTranscribing) return
 
   if (ws && ws.readyState === WebSocket.OPEN && taskId && taskStarted) {
     const finishTask = {
@@ -162,8 +199,12 @@ function stopTranscription() {
     ws.send(JSON.stringify(finishTask))
   }
 
+  transcriptionRequested = false
+  transcriptionApiKey = ''
+  reconnectAttempts = 0
+  stopReconnectTimer()
   isTranscribing = false
-  cleanup()
+  cleanupSocket()
   clearTranscriptionOnTermination()
   sendToRenderer('transcription-stopped')
 }

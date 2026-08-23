@@ -16,7 +16,7 @@ export default function CoderPage() {
   const { syncAppState } = useAppStore()
   const { isTranscribing, setIsTranscribing, setTranscriptionText, clearText } =
     useTranscriptionStore()
-  const { setErrorMessage } = useSolutionStore()
+  const { setErrorMessage, setCurrentStage } = useSolutionStore()
   const isMountedRef = useRef(true)
   const isStartingTranscriptionRef = useRef(false)
 
@@ -117,6 +117,15 @@ export default function CoderPage() {
       window.api.removeTranscriptionClearedListener()
     }
   }, [setTranscriptionText, setErrorMessage, setIsTranscribing, clearText])
+
+  useEffect(() => {
+    window.api.onStageChanged((data) => {
+      setCurrentStage(data.stageIndex)
+    })
+    return () => {
+      window.api.removeStageChangedListener()
+    }
+  }, [setCurrentStage])
 
   useEffect(() => {
     return () => {

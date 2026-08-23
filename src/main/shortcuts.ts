@@ -13,13 +13,14 @@ import {
   hasVoiceProviderCredentials
 } from './ai'
 import { state } from './state'
-import { settings } from './settings'
+import { getActiveStages, settings, type ContextMode } from './settings'
 import {
   getTranscriptionText,
   clearTranscriptionText,
   getLastSentenceTime,
   setPreserveTextOnTermination
 } from './transcription'
+import { getWritingProfileText } from './ellt/writing-profile'
 
 /**
  * Extract meaningful error message from API errors
@@ -99,6 +100,7 @@ interface VisualContext {
 
 let visualContext: VisualContext | null = null
 let voiceHistory: { question: string; answer: string }[] = []
+let currentStage = 0
 
 // Auto voice mode for ELLT speaking
 let autoVoiceMode = false
@@ -114,7 +116,7 @@ let semicolonPressTimer: NodeJS.Timeout | null = null
 const SEMICOLON_TRIPLE_PRESS_WINDOW_MIN = 300
 const SEMICOLON_TRIPLE_PRESS_WINDOW_MAX = 700
 let currentTriplePressWindow = 500
-const commandModeKeys = ['S', 'A', 'Q', 'R', 'C', 'H', 'M', 'J', 'K']
+const commandModeKeys = ['S', 'A', 'Q', 'R', 'C', 'H', 'M', 'J', 'K', ',', '.']
 
 const FRONT_REASSERT_DURATION = 8000
 const FRONT_REASSERT_INTERVAL = 100
@@ -278,19 +280,7 @@ function parseVisualContext(raw: string): VisualContext {
   return { kind, text: cleaned }
 }
 
-function checkWritingQuestion(question: string): boolean {
-  const q = question.toLowerCase()
-  const keywords = [
-    'essay',
-    'writing',
-    'article',
-    'do you agree',
-    'agree or disagree',
-    'what did you write'
-  ]
-  return keywords.some((keyword) => q.includes(keyword))
-}
-async function extractVisualContext(screenshotData: string) {
+async function extractVisualContext(screenshotData: string, stageIndex: number) {
   const mainWindow = global.mainWindow
   if (!mainWindow || mainWindow.isDestroyed()) return
 
@@ -312,6 +302,7 @@ async function extractVisualContext(screenshotData: string) {
       try {
         const extractionStream = getVisualExtractionStream(
           screenshotData,
+          stageIndex,
           streamContext.controller.signal
         )
         for await (const chunk of extractionStream) {
@@ -379,21 +370,24 @@ async function captureScreenshotForRequest(): Promise<string | null> {
 }
 
 /**
- * Toggle command mode on/off
+ * Toggle command mode on/off.
+ * Registers bare-key global shortcuts for all command mode keys.
+ * On Windows some keys may fail silently — we log every failure.
  */
 function toggleCommandMode() {
   commandMode = !commandMode
 
   if (commandMode) {
-    // Register single-letter shortcuts
     commandModeKeys.forEach((key) => {
       const action = getActionForKey(key)
       if (action && callbacks[action]) {
-        globalShortcut.register(key, callbacks[action])
+        const ok = globalShortcut.register(key, callbacks[action])
+        if (!ok) {
+          console.warn(`[commandMode] failed to register global shortcut: "${key}"`)
+        }
       }
     })
   } else {
-    // Unregister single-letter shortcuts
     commandModeKeys.forEach((key) => {
       globalShortcut.unregister(key)
     })
@@ -413,7 +407,9 @@ function getActionForKey(key: string): string | null {
     H: 'hideOrShowMainWindow',
     M: 'ignoreOrEnableMouse',
     J: 'pageDown',
-    K: 'pageUp'
+    K: 'pageUp',
+    ',': 'previousStage',
+    '.': 'nextStage'
   }
   return keyMap[key] || null
 }
@@ -446,6 +442,42 @@ function handleSemicolonPress() {
       semicolonPressTimer = null
     }, currentTriplePressWindow)
   }
+}
+
+/**
+ * Switch to an adjacent stage. Effective changes abort the current stream and
+ * clear the working context; boundary presses only confirm the stage in the UI.
+ */
+function changeStage(nextStage: number) {
+  const mainWindow = global.mainWindow
+  if (!mainWindow || mainWindow.isDestroyed() || !state.inCoderPage) return
+
+  const stages = getActiveStages()
+  if (stages.length === 0) {
+    currentStage = 0
+    mainWindow.webContents.send('stage-changed', { stageIndex: currentStage, stages })
+    return
+  }
+
+  const clampedStage = Math.max(0, Math.min(stages.length - 1, nextStage))
+  if (clampedStage === currentStage) {
+    // Boundary: keep context, only confirm the stage in the UI
+    mainWindow.webContents.send('stage-changed', { stageIndex: currentStage, stages })
+    return
+  }
+
+  abortCurrentStream('new-request')
+  screenshotCaptureGeneration++
+  currentStage = clampedStage
+  voiceHistory = []
+  visualContext = null
+  conversationMessages = []
+  recentScreenshots = []
+  hasAppendSeparator = false
+  pendingVoiceQuestion = null
+  mainWindow.webContents.send('solution-clear')
+  mainWindow.webContents.send('screenshots-updated', recentScreenshots)
+  mainWindow.webContents.send('stage-changed', { stageIndex: currentStage, stages })
 }
 
 const callbacks: Record<string, () => void> = {
@@ -494,7 +526,7 @@ const callbacks: Record<string, () => void> = {
         mainWindow.webContents.send('solution-clear')
         mainWindow.webContents.send('screenshots-updated', recentScreenshots)
         mainWindow.webContents.send('screenshot-taken', screenshotData)
-        extractVisualContext(screenshotData)
+        extractVisualContext(screenshotData, currentStage)
         return
       }
       const transcriptionText = getTranscriptionText()
@@ -795,6 +827,14 @@ const callbacks: Record<string, () => void> = {
     mainWindow.webContents.send('transcription-cleared')
   },
 
+  previousStage: () => {
+    changeStage(currentStage - 1)
+  },
+
+  nextStage: () => {
+    changeStage(currentStage + 1)
+  },
+
   // Voice trigger: reuse screenshots when available, otherwise use the low-latency text model.
   voiceTrigger: async () => {
     const mainWindow = global.mainWindow
@@ -836,23 +876,45 @@ const callbacks: Record<string, () => void> = {
 
     let receivedContent = false
     try {
-      const isWritingQuestion = checkWritingQuestion(question) && Boolean(settings.writingContent)
-      // 作文题优先于旧视觉上下文（Stage 2 → 3 自动切换）
-      if (isWritingQuestion && visualContext) {
-        visualContext = null
-        voiceHistory = []
-      }
-      const useVisual = visualContext != null
-      const visualContextForAnswer = visualContext?.text
-      const writingContextForAnswer = isWritingQuestion ? settings.writingContent : undefined
-      const personalContextForAnswer =
-        !useVisual && !isWritingQuestion ? settings.personalInfo || undefined : undefined
+      const stage = getActiveStages()[currentStage]
+      const contextConfig = stage?.contextConfig
+      const contextSources: { mode: ContextMode; value: string | undefined }[] = [
+        { mode: contextConfig?.visualContext ?? 'off', value: visualContext?.text },
+        {
+          mode: contextConfig?.writingContent ?? 'off',
+          value: settings.writingContent || undefined
+        },
+        { mode: contextConfig?.personalInfo ?? 'off', value: settings.personalInfo || undefined }
+      ]
+      const hasPrimaryContext = contextSources.some(
+        ({ mode, value }) => mode === 'primary' && Boolean(value)
+      )
+      const selectContext = (mode: ContextMode | undefined, value: string | undefined) =>
+        mode === 'primary' || (mode === 'fallback' && !hasPrimaryContext) ? value : undefined
+
+      const visualContextForAnswer = selectContext(
+        contextConfig?.visualContext,
+        visualContext?.text
+      )
+      const writingContextForAnswer = selectContext(
+        contextConfig?.writingContent,
+        settings.writingContent || undefined
+      )
+      const personalContextForAnswer = selectContext(
+        contextConfig?.personalInfo,
+        settings.personalInfo || undefined
+      )
+      const writingProfileForAnswer = writingContextForAnswer
+        ? await getWritingProfileText(writingContextForAnswer, streamContext.controller.signal)
+        : undefined
 
       let answer = ''
       const voiceStream = getVoiceAnswerStream(
         question,
+        currentStage,
         visualContextForAnswer,
         writingContextForAnswer,
+        writingProfileForAnswer,
         personalContextForAnswer,
         voiceHistory,
         streamContext.controller.signal
@@ -913,6 +975,11 @@ const callbacks: Record<string, () => void> = {
     pendingVoiceQuestion = null
     visualContext = null
     voiceHistory = []
+    currentStage = 0
+    mainWindow.webContents.send('stage-changed', {
+      stageIndex: currentStage,
+      stages: getActiveStages()
+    })
     clearTranscriptionText()
     mainWindow.webContents.send('transcription-cleared')
     mainWindow.webContents.send('solution-clear')
@@ -971,10 +1038,15 @@ function endVoiceSession() {
   hasAppendSeparator = false
   visualContext = null
   voiceHistory = []
+  currentStage = 0
   clearTranscriptionText()
 
   const mainWindow = global.mainWindow
   if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send('stage-changed', {
+    stageIndex: currentStage,
+    stages: getActiveStages()
+  })
   mainWindow.webContents.send('transcription-cleared')
   mainWindow.webContents.send('solution-clear')
   mainWindow.webContents.send('screenshots-updated', recentScreenshots)

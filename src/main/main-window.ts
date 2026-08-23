@@ -57,11 +57,6 @@ export function createWindow(): void {
     // (settings.ts); the window's own show event must not force it back on.
     applyContentProtection(mainWindow)
 
-    // Open DevTools in development
-    if (is.dev) {
-      mainWindow.webContents.openDevTools({ mode: 'detach' })
-    }
-
     // Reclaim top position when other apps steal it
     mainWindow.on('always-on-top-changed', (_event, isAlwaysOnTop) => {
       if (!isAlwaysOnTop && mainWindow.isVisible() && !mainWindow.isDestroyed()) {
