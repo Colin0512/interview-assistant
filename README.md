@@ -1,10 +1,6 @@
-<h1 align="center">🚀 API 中转站</h1>
-<h3 align="center">👉 <a href="https://api.lmxww.xyz">api.lmxww.xyz</a> 👈</h3>
-<p align="center"><b>稳定 · 低价 · OpenAI 兼容</b>　｜　百炼 / 硅基流动 / 国内模型即开即用</p>
-
----
-
 # AI 口语助手
+
+> 💝 **赞助**：[api.lmxww.xyz](https://api.lmxww.xyz) — 稳定低价的 OpenAI 兼容 API 中转站，支持百炼、硅基流动等国内模型
 
 基于 AI 的口语考试和面试辅助工具。实时捕获系统音频并转录考官提问，生成你可以直接念出的口语回答。窗口对屏幕分享软件隐身。
 
