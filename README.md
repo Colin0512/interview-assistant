@@ -1,159 +1,157 @@
-# AI Speaking Assistant
+# AI 口语助手
 
-AI-powered desktop assistant for oral exams and interviews. Captures system audio, transcribes examiner questions in real time, and generates spoken answers you can read aloud — while keeping the window invisible to screen sharing.
+基于 AI 的口语考试和面试辅助工具。实时捕获系统音频并转录考官提问，生成你可以直接念出的口语回答。窗口对屏幕分享软件隐身。
 
-## Features
+## 功能
 
-- **Real-time speech transcription** — captures system audio loopback, transcribes examiner questions via DashScope ASR
-- **AI-generated spoken answers** — uses vision and text models to generate natural, stage-appropriate responses
-- **Configurable stage presets** — built-in ELLT Speaking and Tech Interview templates; create your own stages with custom context rules
-- **Screenshot context extraction** — automatically reads exam materials, photographs, and diagrams from screen captures
-- **Auto-voice mode** — silence detection triggers answer generation without manual input
-- **Command mode** — triple-semicolon activation for single-key shortcuts (no visible keystrokes)
-- **Screen capture protection** — window content is hidden from screen sharing via Electron content protection
-- **No taskbar or tray icon** — runs invisibly in the background
+- **实时语音转录** — 捕获系统音频回环，通过 DashScope ASR 实时转写考官讲话
+- **AI 生成口语回答** — 结合视觉和文本模型，生成自然、符合当前阶段的回答
+- **可配置阶段预设** — 内置 ELLT 口语和技术面试模板，可自定义阶段和上下文规则
+- **截图内容识别** — 自动提取屏幕中的阅读材料、图片和图表
+- **自动语音模式** — 静音检测自动触发回答生成，无需手动操作
+- **命令模式** — 三次分号激活单键快捷键，无可见按键操作
+- **屏幕捕获保护** — 通过 Electron 内容保护隐藏窗口像素
+- **无任务栏和托盘图标** — 后台静默运行
 
-## How It Works
+## 工作流程
 
 ```
-Examiner speaks → System audio captured → ASR transcription → AI generates answer → You read it aloud
+考官说话 → 系统音频捕获 → 语音转文字 → AI 生成回答 → 你念出来
 ```
 
-1. Press `;;;R` to start transcription (triple semicolon, then R)
-2. The app captures system audio and transcribes the examiner's speech
-3. After ~1 second of silence, the transcribed question is sent to the AI
-4. The AI generates a spoken answer based on the current stage context
-5. Read the answer aloud — the window stays invisible to screen sharing
+1. 按 `;;;R` 开始转录（三次分号，再按 R）
+2. 应用捕获系统音频并转写考官讲话
+3. 静音约 1 秒后，转录文字自动发送给 AI
+4. AI 根据当前阶段上下文生成口语回答
+5. 念出回答——窗口对屏幕分享不可见
 
-## Stage Presets
+## 阶段预设
 
-Each stage defines what context the AI uses when generating answers. Switch stages with `;;;,` and `;;;.`
+每个阶段定义了 AI 生成回答时使用的上下文。按 `;;;,` 和 `;;;.` 切换阶段。
 
-### ELLT Speaking (default)
+### ELLT 口语（默认）
 
-| Stage | Context |
-|-------|---------|
-| Introduction | Personal profile |
-| Reading | Screenshot + personal profile fallback |
-| Writing Q&A | Essay content + personal profile fallback |
-| Photograph | Screenshot only |
+| 阶段 | 上下文 |
+|------|--------|
+| Introduction | 个人资料 |
+| Reading | 截图 + 个人资料兜底 |
+| Writing Q&A | 作文内容 + 个人资料兜底 |
+| Photograph | 截图 |
 
-### Tech Interview
+### 技术面试
 
-| Stage | Context |
-|-------|---------|
-| 自我介绍 | Personal profile |
-| 技术问答 | Screenshot + personal profile fallback |
-| 项目经验 | Written content + personal profile fallback |
-| 行为面试 | Personal profile |
+| 阶段 | 上下文 |
+|------|--------|
+| 自我介绍 | 个人资料 |
+| 技术问答 | 截图 + 个人资料兜底 |
+| 项目经验 | 写作内容 + 个人资料兜底 |
+| 行为面试 | 个人资料 |
 
-You can create, edit, and reorder stages in the Settings page.
+可在设置页面创建、编辑和排序阶段。
 
-## Setup
-
-### Prerequisites
+## 环境要求
 
 - Node.js 22+
-- Windows (primary target) or macOS
+- Windows（主要支持）或 macOS
 
-### Install
+## 安装
 
 ```bash
 npm install
 ```
 
-### Configure API Keys
+## 配置 API Key
 
-Copy the example environment file and fill in your keys:
+复制环境变量模板并填入你的密钥：
 
 ```bash
 cp .env.example .env
 ```
 
-Required services:
+所需服务：
 
-| Service | Purpose | Provider |
-|---------|---------|----------|
-| Vision model | Screenshot analysis, essay preprocessing | Any OpenAI-compatible API |
-| Text model | Spoken answer generation | Any OpenAI-compatible API |
-| ASR | Real-time speech transcription | [DashScope](https://help.aliyun.com/zh/model-studio/get-api-key) |
+| 服务 | 用途 | 提供商 |
+|------|------|--------|
+| 视觉模型 | 截图分析、作文预处理 | 任意 OpenAI 兼容 API |
+| 文本模型 | 口语回答生成 | 任意 OpenAI 兼容 API |
+| 语音识别 | 实时语音转文字 | [百炼平台](https://help.aliyun.com/zh/model-studio/get-api-key) |
 
 ```env
-# Main vision/text model provider
+# 主视觉/文本模型
 API_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
-API_KEY="your-key"
+API_KEY="你的密钥"
 MODEL="qwen-vl-max"
 
-# Optional dedicated model for spoken answers (falls back to main)
+# 可选：口语回答专用模型（不填则复用主模型）
 VOICE_API_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
-VOICE_API_KEY="your-key"
+VOICE_API_KEY="你的密钥"
 VOICE_MODEL="qwen-turbo"
 
-# Real-time speech recognition
-DASHSCOPE_API_KEY="your-key"
+# 实时语音识别
+DASHSCOPE_API_KEY="你的密钥"
 ```
 
-You can also configure API keys in the app Settings page after launch.
+也可以在应用启动后的设置页面中配置。
 
-### Run
+## 运行
 
-Development mode:
+开发模式：
 
 ```bash
 npm run dev
 ```
 
-Production preview:
+生产预览：
 
 ```bash
 npm run build
 npm start
 ```
 
-Build Windows installer:
+Windows 打包：
 
 ```bash
 npm run build:win
 ```
 
-Outputs: `dist/system-helper-<version>-setup.exe` and `dist/win-unpacked/`
+输出：`dist/system-helper-<version>-setup.exe` 和 `dist/win-unpacked/`
 
-## Command Mode Shortcuts
+## 命令模式快捷键
 
-Press `;;;` (three semicolons) to enter command mode, then press a single key:
+按 `;;;`（三次分号）进入命令模式，然后按单个键：
 
-| Key | Action |
-|-----|--------|
-| `,` | Previous stage |
-| `.` | Next stage |
-| `S` | Take screenshot |
-| `A` | Append screenshot |
-| `R` | Toggle transcription |
-| `C` | Clear context |
-| `H` | Hide/show window |
-| `M` | Toggle mouse passthrough |
-| `J` / `K` | Scroll up/down |
+| 按键 | 功能 |
+|------|------|
+| `,` | 上一阶段 |
+| `.` | 下一阶段 |
+| `S` | 截图 |
+| `A` | 追加截图 |
+| `R` | 开关转录 |
+| `C` | 清除上下文 |
+| `H` | 隐藏/显示窗口 |
+| `M` | 鼠标穿透 |
+| `J` / `K` | 上下翻页 |
 
-Press `;;;` again to exit command mode.
+再按 `;;;` 退出命令模式。
 
-## Personal Data
+## 个人数据
 
-The public repository contains no personal profiles, essays, or API keys. Configure your own in the app Settings page:
+公开仓库不包含任何真实个人资料、作文或 API 密钥。请在应用设置页自行配置：
 
-- **Personal Profile** — your background, education, hobbies, etc. for Stage 1
-- **Writing Content** — your fixed essay or written response for Stage 3
-- **Stage Presets** — customize stage names, colors, context rules, and prompts
+- **个人资料** — 你的背景、学历、爱好等，用于 Stage 1
+- **写作内容** — 固定作文或书面回答，用于 Stage 3
+- **阶段预设** — 自定义阶段名称、颜色、上下文规则和提示词
 
-This data is stored locally in your browser's localStorage and Electron user data directory. It is never uploaded or shared.
+这些数据存储在浏览器 localStorage 和 Electron 用户数据目录中，不会被上传或分享。
 
-## Screen Capture Protection
+## 屏幕捕获保护说明
 
-The app uses Electron's `setContentProtection` to hide window content from screen sharing. The window has no title, no taskbar button, and no tray icon. Results depend on your OS, graphics driver, and conferencing software. Some applications (e.g., certain Zoom versions) may still show a blank or black card in the share picker. Test before use.
+应用使用 Electron `setContentProtection` 隐藏窗口内容。窗口无标题、无任务栏按钮、无托盘图标。实际效果取决于操作系统、显卡驱动和会议软件。部分软件（如某些 Zoom 版本）可能在分享选择器中显示空白或黑色卡片。正式使用前请自行测试。
 
-## License
+## 许可证
 
-[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — free for non-commercial use. Commercial use requires written permission.
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.zh) — 免费用于非商业用途，商业使用需书面授权。
 
-## Credits
+## 致谢
 
-Based on [interview-coder-cn](https://github.com/ooboqoo/interview-coder-cn) by [ooboqoo](https://github.com/ooboqoo).
+基于 [interview-coder-cn](https://github.com/ooboqoo/interview-coder-cn) 由 [ooboqoo](https://github.com/ooboqoo) 开发。
