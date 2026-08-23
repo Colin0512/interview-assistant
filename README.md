@@ -1,10 +1,18 @@
-<p align="center">
+## ❤️ 赞助
+
+<table>
+<tr>
+<td width="200" align="center">
   <a href="https://api.lmxww.xyz">
-    <img src="https://img.shields.io/badge/赞助-API中转站-ff69b4?style=for-the-badge&logo=rocket" alt="赞助" />
+    <b>🚀 API 中转站</b><br/>
+    <sub>api.lmxww.xyz</sub>
   </a>
-  <br/>
-  <b>api.lmxww.xyz</b> — 稳定低价 · OpenAI 兼容 · 百炼 / 硅基流动 / 即开即用
-</p>
+</td>
+<td>
+  稳定低价的 OpenAI 兼容 API 中转服务，支持百炼、硅基流动等国内模型，即开即用。一个 Key 通吃所有模型，无需分别注册多个平台。
+</td>
+</tr>
+</table>
 
 # AI 口语助手
 
