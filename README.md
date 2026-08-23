@@ -5,7 +5,7 @@
 <td width="200" align="center">
   <a href="https://api.lmxww.xyz">
     <b>🚀 API 中转站</b><br/>
-    <sub>api.lmxww.xyz</sub>
+    <b><big>api.lmxww.xyz</big></b>
   </a>
 </td>
 <td>
