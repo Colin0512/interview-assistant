@@ -1,6 +1,12 @@
-# AI 口语助手
+<p align="center">
+  <a href="https://api.lmxww.xyz">
+    <img src="https://img.shields.io/badge/赞助-API中转站-ff69b4?style=for-the-badge&logo=rocket" alt="赞助" />
+  </a>
+  <br/>
+  <sub><b>api.lmxww.xyz</b> — 稳定低价 · OpenAI 兼容 · 百炼/硅基流动即开即用</sub>
+</p>
 
-> 💝 **赞助**：[api.lmxww.xyz](https://api.lmxww.xyz) — 稳定低价的 OpenAI 兼容 API 中转站，支持百炼、硅基流动等国内模型
+# AI 口语助手
 
 基于 AI 的口语考试和面试辅助工具。实时捕获系统音频并转录考官提问，生成你可以直接念出的口语回答。窗口对屏幕分享软件隐身。
 
