@@ -3,7 +3,7 @@
     <img src="https://img.shields.io/badge/赞助-API中转站-ff69b4?style=for-the-badge&logo=rocket" alt="赞助" />
   </a>
   <br/>
-  <sub><b>api.lmxww.xyz</b> — 稳定低价 · OpenAI 兼容 · 百炼/硅基流动即开即用</sub>
+  <b>api.lmxww.xyz</b> — 稳定低价 · OpenAI 兼容 · 百炼 / 硅基流动 / 即开即用
 </p>
 
 # AI 口语助手
