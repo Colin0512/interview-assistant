@@ -8,7 +8,7 @@
 <tr>
 <td width="200" align="center">
   <a href="https://api.lmxww.xyz">
-    <b>🚀 API 中转站</b><br/>
+    <b>🚀 极智 中转站</b><br/>
     <b><big>api.lmxww.xyz</big></b>
   </a>
 </td>
