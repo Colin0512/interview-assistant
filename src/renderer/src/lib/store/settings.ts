@@ -351,7 +351,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'interview-coder-settings',
-      version: 12,
+      version: 13,
       migrate: (persisted, version) => {
         const state = persisted as Partial<Settings> & Record<string, unknown>
         delete state.codeLanguage
@@ -376,7 +376,7 @@ export const useSettingsStore = create<SettingsStore>()(
           state.personalInfo = candidateProfile
           state.writingContent = writingContent
         }
-        if (version < 12) {
+        if (version < 13) {
           const legacyStages = Array.isArray(state.stages)
             ? (state.stages as StageDef[])
             : undefined
@@ -385,6 +385,7 @@ export const useSettingsStore = create<SettingsStore>()(
           state.stagePresets = presets
           state.activeStagePresetId = DEFAULT_STAGE_PRESET_ID
           delete state.stages
+          state.writingContent = writingContent
         }
         return state
       },
