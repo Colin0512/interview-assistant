@@ -155,11 +155,11 @@ function getOrdinalIndex(question: string): number | 'last' | null {
   const q = question.toLowerCase()
   if (/\b(final|last)\b/.test(q)) return 'last'
   const ordinals = [
-    /\b(first|1st|one)\b/,
-    /\b(second|2nd|two)\b/,
-    /\b(third|3rd|three)\b/,
-    /\b(fourth|4th|four)\b/,
-    /\b(fifth|5th|five)\b/
+    /\b(first|1st)\b/,
+    /\b(second|2nd)\b/,
+    /\b(third|3rd)\b/,
+    /\b(fourth|4th)\b/,
+    /\b(fifth|5th)\b/
   ]
   const index = ordinals.findIndex((pattern) => pattern.test(q))
   return index >= 0 ? index : null

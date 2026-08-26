@@ -51,7 +51,7 @@ interface CachedWritingProfile {
 const WRITING_PROFILE_VERSION = 5
 
 let memoryCache: CachedWritingProfile | null = null
-let activeRequest: Promise<WritingProfile | null> | null = null
+const activeRequests = new Map<string, Promise<WritingProfile | null>>()
 
 function getCachePath() {
   return join(app.getPath('userData'), 'writing-profile.json')
@@ -169,12 +169,13 @@ export async function getWritingProfile(
   if (!normalized) return null
   const cached = await readCachedProfile(normalized)
   if (cached) return cached
-  if (!activeRequest) {
-    activeRequest = generateWritingProfile(normalized, abortSignal).finally(() => {
-      activeRequest = null
-    })
-  }
-  return activeRequest
+  const existing = activeRequests.get(normalized)
+  if (existing) return existing
+  const request = generateWritingProfile(normalized, abortSignal).finally(() => {
+    activeRequests.delete(normalized)
+  })
+  activeRequests.set(normalized, request)
+  return request
 }
 
 export async function getWritingProfileText(

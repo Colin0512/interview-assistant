@@ -959,6 +959,7 @@ const callbacks: Record<string, () => void> = {
           mainWindow.webContents.send('solution-stopped')
         }
       } else {
+        pendingVoiceQuestion = null
         console.error('Error streaming voice response:', error)
         mainWindow.webContents.send('solution-error', extractErrorMessage(error))
       }

@@ -32,19 +32,26 @@ export default function TeleprompterRenderer({ text, speed, isActive }: Props) {
     currentRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [currentIndex])
 
-  // Auto-advance timer
-  const msPerChunk = speed > 0 ? (60 / speed) * 1000 : 400
+  // Reset index when text changes (e.g. switching questions)
+  useEffect(() => {
+    setCurrentIndex(0)
+  }, [text])
 
+  // Auto-advance timer — delay scales with current chunk word count
   useEffect(() => {
     if (isActive || paused || chunks.length === 0) return
     if (currentIndex >= chunks.length - 1) return
+
+    const currentChunk = chunks[currentIndex]
+    const wordCount = currentChunk ? currentChunk.split(/\s+/).filter(Boolean).length : 1
+    const msPerChunk = speed > 0 ? (wordCount / speed) * 60 * 1000 : 400
 
     const timer = setTimeout(() => {
       setCurrentIndex((prev) => Math.min(prev + 1, chunks.length - 1))
     }, msPerChunk)
 
     return () => clearTimeout(timer)
-  }, [currentIndex, isActive, paused, chunks.length, msPerChunk])
+  }, [currentIndex, isActive, paused, chunks.length, speed])
 
   // Keyboard controls
   const handleKeyDown = useCallback(
