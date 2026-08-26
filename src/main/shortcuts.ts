@@ -27,6 +27,7 @@ import { applyOralFilter, applyPauseMarkers } from './oral-filter'
  * Extract meaningful error message from API errors
  */
 function extractErrorMessage(error: unknown): string {
+  if (error == null) return '未知错误'
   if (!(error instanceof Error)) {
     return String(error) || '未知错误'
   }
@@ -843,7 +844,8 @@ const callbacks: Record<string, () => void> = {
       return
     }
 
-    const transcriptionText = getTranscriptionText().trim()
+    const rawTranscription = getTranscriptionText()
+    const transcriptionText = rawTranscription?.trim() ?? ''
     const hasApiCredentials = hasVoiceProviderCredentials()
 
     if (transcriptionText) {
@@ -926,8 +928,8 @@ const callbacks: Record<string, () => void> = {
         if (chunk) {
           receivedContent = true
           answer += chunk
+          mainWindow.webContents.send('solution-chunk', applyOralFilter(chunk))
         }
-        mainWindow.webContents.send('solution-chunk', chunk)
       }
 
       const ownsStream = currentStreamContext === streamContext
@@ -937,11 +939,15 @@ const callbacks: Record<string, () => void> = {
         }
       } else if (ownsStream) {
         if (receivedContent) {
-          const filteredAnswer = applyPauseMarkers(applyOralFilter(answer))
+          const oralAnswer = applyOralFilter(answer)
+          const displayAnswer = settings.showPauseMarkers
+            ? applyPauseMarkers(oralAnswer)
+            : oralAnswer
           pendingVoiceQuestion = null
-          voiceHistory = [...voiceHistory, { question, answer: filteredAnswer }].slice(-4)
+          // Store raw answer (without pause markers) in voiceHistory
+          voiceHistory = [...voiceHistory, { question, answer }].slice(-4)
           mainWindow.webContents.send('solution-clear')
-          mainWindow.webContents.send('solution-chunk', filteredAnswer)
+          mainWindow.webContents.send('solution-chunk', displayAnswer)
           mainWindow.webContents.send('solution-complete')
         } else {
           mainWindow.webContents.send('solution-error', '模型未返回内容，请按 V 重试')

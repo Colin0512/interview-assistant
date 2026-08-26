@@ -76,6 +76,7 @@ export const settings = {
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
   writingContent: DEFAULT_WRITING_CONTENT,
+  showPauseMarkers: true,
   personalInfo: process.env.PERSONAL_INFO || '',
   stagePresets: [] as StagePreset[],
   activeStagePresetId: ''

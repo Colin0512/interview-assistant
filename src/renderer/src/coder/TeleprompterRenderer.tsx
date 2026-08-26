@@ -8,7 +8,7 @@ interface Props {
 
 /** Split text into sentence-level chunks for teleprompter display. */
 function splitSentences(text: string): string[] {
-  if (!text.trim()) return []
+  if (!text?.trim()) return []
   const sentences = text.split(/(?<=[.。!！?？\n])\s*/)
   return sentences.filter((s) => s.trim().length > 0)
 }
@@ -52,12 +52,17 @@ export default function TeleprompterRenderer({ text, speed, isActive }: Props) {
       if (e.key === ' ') {
         e.preventDefault()
         setPaused((prev) => !prev)
-      } else if (e.key === 'ArrowRight') {
+        return
+      }
+      if (e.key === 'ArrowRight') {
         e.preventDefault()
         setCurrentIndex((prev) => Math.min(prev + 1, chunks.length - 1))
-      } else if (e.key === 'ArrowLeft') {
+        return
+      }
+      if (e.key === 'ArrowLeft') {
         e.preventDefault()
         setCurrentIndex((prev) => Math.max(prev - 1, 0))
+        return
       }
     },
     [chunks.length]

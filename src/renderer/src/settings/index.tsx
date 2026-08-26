@@ -852,7 +852,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">
                     语速
-                    <span className="ml-2 text-xs font-light">{speechSpeed} 词/分钟</span>
+                    <span className="ml-2 text-xs font-light">{speechSpeed} 句/分钟</span>
                   </label>
                   <div className="w-60 flex items-center gap-2">
                     <span className="text-xs whitespace-nowrap">慢</span>
