@@ -72,7 +72,7 @@ export function getFollowUpStream(
 
 function getStageRule(stage: StageDef | undefined): string {
   if (stage?.customPrompt?.trim()) return stage.customPrompt
-  return 'Output only the spoken English answer. Use natural language and short sentences. Answer directly, then develop the idea with a reason, example, comparison or consequence. Follow the suggested length flexibly and never add filler.'
+  return 'Output ONLY the spoken answer — no explanations, no commentary. Use natural spoken English, like talking to a friend. One idea per sentence. Use common everyday words (B1-B2 level). Avoid: utilize, leverage, implement, demonstrate, extensive, facilitate, optimize. Use natural connectors: Well, Actually, I think. Do NOT use First/Second/Finally. Short sentences, direct answer. You ARE the candidate.'
 }
 
 function resolveVoiceProvider() {
