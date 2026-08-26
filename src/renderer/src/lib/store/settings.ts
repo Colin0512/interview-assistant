@@ -182,6 +182,9 @@ interface Settings {
   audioOutputDeviceId: string
   writingContent: string
   personalInfo: string
+  displayMode: 'normal' | 'teleprompter'
+  speechSpeed: number
+  showPauseMarkers: boolean
 }
 
 interface SettingsStore extends Settings {
@@ -222,7 +225,10 @@ const defaultSettings: Settings = {
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
   writingContent,
-  personalInfo: candidateProfile
+  personalInfo: candidateProfile,
+  displayMode: 'normal',
+  speechSpeed: 150,
+  showPauseMarkers: true
 }
 
 const makeId = (prefix: string) =>
@@ -351,7 +357,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'interview-coder-settings',
-      version: 13,
+      version: 14,
       migrate: (persisted, version) => {
         const state = persisted as Partial<Settings> & Record<string, unknown>
         delete state.codeLanguage
@@ -386,6 +392,11 @@ export const useSettingsStore = create<SettingsStore>()(
           state.activeStagePresetId = DEFAULT_STAGE_PRESET_ID
           delete state.stages
           state.writingContent = writingContent
+        }
+        if (version < 14) {
+          if (state.displayMode === undefined) state.displayMode = 'normal'
+          if (state.speechSpeed === undefined) state.speechSpeed = 150
+          if (state.showPauseMarkers === undefined) state.showPauseMarkers = true
         }
         return state
       },

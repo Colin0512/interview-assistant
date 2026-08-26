@@ -72,6 +72,9 @@ export default function SettingsPage() {
     writingContent,
     personalInfo,
     hideDockIcon,
+    displayMode,
+    speechSpeed,
+    showPauseMarkers,
     stagePresets,
     activeStagePresetId,
     updateSetting,
@@ -822,6 +825,63 @@ export default function SettingsPage() {
                 <span className="text-xs whitespace-nowrap">不透明</span>
               </div>
             </div>
+
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">
+                显示模式
+                <span className="ml-2 text-xs font-light">题词器模式将答案按句子分块滚动显示</span>
+              </label>
+              <Select
+                value={displayMode}
+                onValueChange={(val) =>
+                  updateSetting('displayMode', val as 'normal' | 'teleprompter')
+                }
+              >
+                <SelectTrigger className="w-60 bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">普通模式</SelectItem>
+                  <SelectItem value="teleprompter">题词器模式</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {displayMode === 'teleprompter' && (
+              <>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">
+                    语速
+                    <span className="ml-2 text-xs font-light">{speechSpeed} 词/分钟</span>
+                  </label>
+                  <div className="w-60 flex items-center gap-2">
+                    <span className="text-xs whitespace-nowrap">慢</span>
+                    <Slider
+                      min={80}
+                      max={250}
+                      step={10}
+                      value={[speechSpeed]}
+                      onValueChange={(value) => updateSetting('speechSpeed', value[0])}
+                    />
+                    <span className="text-xs whitespace-nowrap">快</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">
+                    停顿标记
+                    <span className="ml-2 text-xs font-light">
+                      在题词器模式下显示句子间的停顿标记
+                    </span>
+                  </label>
+                  <Switch
+                    className="scale-y-90"
+                    checked={showPauseMarkers}
+                    onCheckedChange={(checked) => updateSetting('showPauseMarkers', checked)}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 

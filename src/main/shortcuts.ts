@@ -21,6 +21,7 @@ import {
   setPreserveTextOnTermination
 } from './transcription'
 import { getWritingProfileText } from './ellt/writing-profile'
+import { applyOralFilter, applyPauseMarkers } from './oral-filter'
 
 /**
  * Extract meaningful error message from API errors
@@ -936,8 +937,11 @@ const callbacks: Record<string, () => void> = {
         }
       } else if (ownsStream) {
         if (receivedContent) {
+          const filteredAnswer = applyPauseMarkers(applyOralFilter(answer))
           pendingVoiceQuestion = null
-          voiceHistory = [...voiceHistory, { question, answer }].slice(-4)
+          voiceHistory = [...voiceHistory, { question, answer: filteredAnswer }].slice(-4)
+          mainWindow.webContents.send('solution-clear')
+          mainWindow.webContents.send('solution-chunk', filteredAnswer)
           mainWindow.webContents.send('solution-complete')
         } else {
           mainWindow.webContents.send('solution-error', '模型未返回内容，请按 V 重试')

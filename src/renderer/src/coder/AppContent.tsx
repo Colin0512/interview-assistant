@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useShortcutsStore } from '@/lib/store/shortcuts'
 import { useSolutionStore } from '@/lib/store/solution'
+import { useSettingsStore } from '@/lib/store/settings'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
+import TeleprompterRenderer from '@/coder/TeleprompterRenderer'
 import ShortcutRenderer from '@/components/ShortcutRenderer'
 
 const SCROLL_OFFSET = 120
@@ -18,6 +20,9 @@ export function AppContent() {
     setErrorMessage,
     clearSolution
   } = useSolutionStore()
+
+  const displayMode = useSettingsStore((s) => s.displayMode)
+  const speechSpeed = useSettingsStore((s) => s.speechSpeed)
 
   const [recentScreenshots, setRecentScreenshots] = useState<string[]>([])
 
@@ -177,7 +182,15 @@ export function AppContent() {
       ) : null}
 
       {/* Solution Display */}
-      <MarkdownRenderer>{solutionChunks.join('')}</MarkdownRenderer>
+      {displayMode === 'teleprompter' ? (
+        <TeleprompterRenderer
+          text={solutionChunks.join('')}
+          speed={speechSpeed}
+          isActive={isLoading}
+        />
+      ) : (
+        <MarkdownRenderer>{solutionChunks.join('')}</MarkdownRenderer>
+      )}
     </div>
   )
 }
