@@ -73,7 +73,7 @@ const defaultShortcuts: Record<string, Omit<Shortcut, 'defaultKey'>> = {
   },
   voiceTrigger: {
     action: 'voiceTrigger',
-    key: 'V',
+    key: `${platformAlt}+V`,
     category: 'Screenshot & AI'
   },
   clearVoiceContext: {
